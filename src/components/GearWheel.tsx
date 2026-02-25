@@ -161,16 +161,13 @@ function ArcItem({
 }) {
   const slotAngle = index * ANGLE_STEP; // static angle for this slot
 
-  // The exact angle on screen for this item (-180 to 180). 0 is perfectly centered (rightmost edge)
-  const absoluteAngle = useTransform(smoothRotation, (r) => {
+  // How far is this item from the focal center (the left-most point = 0°)?
+  const dist = useTransform(smoothRotation, (r) => {
     let a = (r + slotAngle) % 360;
     if (a > 180) a -= 360;
     if (a < -180) a += 360;
-    return a;
+    return Math.abs(a);
   });
-
-  // How far is this item from the focal center (the left-most point = 0°)?
-  const dist = useTransform(absoluteAngle, Math.abs);
 
   // ─── Depth-of-field mapping ───
   const fontSize = useTransform(dist, [0, 10, 20, 30, 45], [64, 48, 32, 22, 16]);
@@ -180,10 +177,6 @@ function ArcItem({
   
   // Highlight the active item (distance close to 0) with Klein Blue
   const color    = useTransform(dist, [0, 5], ['#002FA7', '#000000']);
-
-  // Counter-rotate the active item so it stays absolutely horizontal at the focal point
-  // When absoluteAngle is e.g. 5 (tilted down 5deg), we rotate it -5deg locally so it's 0 relative to screen
-  const rotate   = useTransform(absoluteAngle, [-15, 0, 15], [15, 0, -15]);
 
   const pointerEvents = useTransform(dist, (d) => (d < 15 ? 'auto' : 'none'));
 
@@ -218,7 +211,6 @@ function ArcItem({
           filter,
           pointerEvents,
           transformOrigin: 'left center', // Grow outward from the left edge
-          rotate, // Apply the horizontal leveling counter-rotation
         }}
         transition={{ duration: 0.12 }}
       >
