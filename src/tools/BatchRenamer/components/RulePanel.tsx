@@ -112,7 +112,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
               className={clsx(
                 "border rounded-xl p-4 shadow-sm relative",
                 rule.type === 'rename' 
-                  ? "bg-orange-50 border-orange-200" 
+                  ? "bg-white border-black" 
                   : "bg-white border-neutral-200"
               )}
             >
@@ -121,7 +121,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                   <span className={clsx(
                     "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded",
                     rule.type === 'rename'
-                      ? "bg-orange-100 text-orange-600"
+                      ? "bg-black text-white"
                       : "bg-neutral-100 text-neutral-500"
                   )}>
                     {RULE_LABELS[rule.type]}
@@ -140,7 +140,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                         value={rule.value} 
                         onChange={e => updateRule(index, { ...rule, value: e.target.value })} 
                       />
-                      <p className="text-xs text-orange-500 mt-2">
+                      <p className="text-xs text-neutral-500 mt-2">
                         提示：配合"序号编号"使用可生成如 photo01, photo02 的序列
                       </p>
                     </div>
@@ -164,7 +164,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                         <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer select-none">
                           <input 
                             type="checkbox"
-                            className="rounded border-neutral-300 text-orange-600 focus:ring-orange-500"
+                            className="rounded border-neutral-300 text-black focus:ring-black"
                             checked={rule.useRegex}
                             onChange={e => updateRule(index, { ...rule, useRegex: e.target.checked })}
                           />
@@ -175,7 +175,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                           <div className="relative">
                             <button 
                               onClick={() => setShowPresets(showPresets === index ? null : index)}
-                              className="flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 px-2 py-1 rounded hover:bg-orange-100 transition-colors"
+                              className="flex items-center gap-1 text-[10px] text-white bg-black px-2 py-1 rounded hover:bg-neutral-800 transition-colors"
                             >
                               <Sparkles size={10} />
                               常用模板
@@ -265,13 +265,13 @@ const RuleButton = ({ icon: Icon, label, onClick, highlight }: { icon: any, labe
   <button
     onClick={onClick}
     className={clsx(
-      "flex flex-col items-center justify-center p-3 gap-2 border rounded-xl hover:bg-neutral-50 active:scale-95 transition-all",
+      "flex flex-col items-center justify-center p-3 gap-2 border rounded-xl active:scale-95 transition-all text-center",
       highlight 
-        ? "bg-orange-50 border-orange-200 hover:border-orange-400 hover:bg-orange-100"
-        : "bg-white border-neutral-200 hover:border-neutral-400"
+        ? "bg-black border-black text-white shadow-sm"
+        : "bg-white border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
     )}
   >
-    <Icon size={20} className={highlight ? "text-orange-600" : "text-neutral-600"} />
-    <span className={clsx("text-xs font-medium", highlight ? "text-orange-600" : "text-neutral-600")}>{label}</span>
+    <Icon size={20} className={highlight ? "text-white" : "text-neutral-600"} />
+    <span className={clsx("text-xs font-medium", highlight ? "text-white" : "text-neutral-600")}>{label}</span>
   </button>
 );

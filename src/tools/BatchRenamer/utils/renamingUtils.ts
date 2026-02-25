@@ -10,6 +10,7 @@ export interface FileItem {
   id: string;
   originalFile: File;
   originalName: string;
+  originalDir: string;
   newName: string;
 }
 
@@ -63,15 +64,16 @@ export const applyRules = (name: string, rules: RenameRule[], index: number): st
 
 export const renumberSequentially = (items: FileItem[]): FileItem[] => {
   // Group by prefix + suffix to identify sequences
-  // Key: "Prefix|Ext" -> Value: [indices]
+  // Key: "Dir|Prefix|Ext" -> Value: [indices]
   const groups = new Map<string, number[]>();
   const pattern = /^(.*?)(\d+)(\.[^.]+)?$/;
 
   items.forEach((item, index) => {
     const match = item.newName.match(pattern);
     if (match) {
-      // Use a separator that is unlikely to be in filename
-      const key = `${match[1]}|||${match[3] || ''}`;
+      // Include directory to avoid renumbering across different folders.
+      const dir = item.originalDir ?? '';
+      const key = `${dir}|||${match[1]}|||${match[3] || ''}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(index);
     }
@@ -79,7 +81,7 @@ export const renumberSequentially = (items: FileItem[]): FileItem[] => {
 
   const result = [...items];
 
-  groups.forEach((indices, key) => {
+  groups.forEach((indices) => {
     // Only renumber if we have items
     // Even if 1 item, user requested "1, 2, 3..." so "A_5" -> "A_1"
     
@@ -104,14 +106,16 @@ export const renumberSequentially = (items: FileItem[]): FileItem[] => {
 };
 
 export const resolveConflicts = (items: FileItem[]): FileItem[] => {
-  const usedNames = new Set<string>();
+  const usedPaths = new Set<string>();
   
   return items.map(item => {
     let name = item.newName;
     let attempts = 0;
+    const dir = item.originalDir ?? '';
+    const makeKey = (candidate: string) => (dir ? `${dir}/${candidate}` : candidate);
     
     // If name is already taken, try to resolve
-    while (usedNames.has(name) && attempts < 100) {
+    while (usedPaths.has(makeKey(name)) && attempts < 100) {
       // Try to find a number at the end of the filename (before extension)
       const match = name.match(/^(.*?)(\d+)(\.[^.]+)?$/);
       
@@ -137,7 +141,7 @@ export const resolveConflicts = (items: FileItem[]): FileItem[] => {
       attempts++;
     }
     
-    usedNames.add(name);
+    usedPaths.add(makeKey(name));
     return { ...item, newName: name };
   });
 };

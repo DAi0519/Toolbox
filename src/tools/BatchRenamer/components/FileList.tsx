@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { FileItem } from '../utils/renamingUtils';
-import { FileText, ArrowRight, X, ArrowDown } from 'lucide-react';
+import { FileText, X, ArrowDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { clsx } from 'clsx';
 
@@ -50,8 +50,8 @@ export const FileList: React.FC<FileListProps> = ({ files, onRemove }) => {
                   {/* New Name (Only if changed) */}
                   {isChanged && (
                     <div className="flex items-start gap-2 text-neutral-900 font-semibold text-base break-all leading-relaxed">
-                      <ArrowDown size={16} className="mt-1 text-orange-500 shrink-0 rotate-[-90deg] sm:rotate-0" />
-                      <span className="bg-orange-50/50 px-1 -ml-1 rounded">
+                      <ArrowDown size={16} className="mt-1 text-black shrink-0 rotate-[-90deg] sm:rotate-0" />
+                      <span className="bg-neutral-100 text-black px-1 -ml-1 rounded">
                         {file.newName}
                       </span>
                     </div>

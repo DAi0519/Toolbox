@@ -1,14 +1,66 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { FileList } from './components/FileList';
 import { RulePanel } from './components/RulePanel';
-import type { RenameRule, FileItem } from './utils/renamingUtils';
+import type { RenameRule } from './utils/renamingUtils';
 import { applyRules, resolveConflicts, renumberSequentially } from './utils/renamingUtils';
 import { Button } from './components/ui/Button';
 import { Download, RefreshCw, Trash2, ShieldCheck, ListOrdered } from 'lucide-react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const saveZipBlob = async (blob: Blob, filename: string): Promise<void> => {
+  if (!('showSaveFilePicker' in window)) {
+    saveAs(blob, filename);
+    return;
+  }
+
+  try {
+    const showSaveFilePicker = (
+      window as Window & {
+        showSaveFilePicker?: (options?: {
+          suggestedName?: string;
+          types?: Array<{
+            description?: string;
+            accept: Record<string, string[]>;
+          }>;
+        }) => Promise<{
+          createWritable: () => Promise<{
+            write: (data: Blob) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+        }>;
+      }
+    ).showSaveFilePicker;
+
+    if (!showSaveFilePicker) {
+      saveAs(blob, filename);
+      return;
+    }
+
+    const handle = await showSaveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: 'ZIP Archive',
+          accept: {
+            'application/zip': ['.zip']
+          }
+        }
+      ]
+    });
+
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  } catch (error) {
+    // User manually canceled save dialog.
+    if (error instanceof DOMException && error.name === 'AbortError') return;
+    // Fallback for browsers/environments with partial picker support.
+    saveAs(blob, filename);
+  }
+};
 
 function AppContent() {
   const [sourceFiles, setSourceFiles] = useState<{id: string, file: File}[]>([]);
@@ -37,12 +89,20 @@ function AppContent() {
   // Derive processed files
   const processedFiles = React.useMemo(() => {
     // 1. Apply rules
-    let processed = sourceFiles.map((item, index) => ({
-      id: item.id,
-      originalFile: item.file,
-      originalName: item.file.name,
-      newName: applyRules(item.file.name, rules, index)
-    }));
+    let processed = sourceFiles.map((item, index) => {
+      const relativePath = item.file.webkitRelativePath || item.file.name;
+      const parts = relativePath.split('/');
+      const originalName = parts[parts.length - 1] || item.file.name;
+      const originalDir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+
+      return {
+        id: item.id,
+        originalFile: item.file,
+        originalName,
+        originalDir,
+        newName: applyRules(originalName, rules, index)
+      };
+    });
 
     // 2. Strict Sequential Renumbering (Optional)
     if (strictSequence) {
@@ -59,12 +119,18 @@ function AppContent() {
 
     try {
       const zip = new JSZip();
-      processedFiles.forEach(file => {
-        zip.file(file.newName, file.originalFile);
-      });
 
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, 'renamed_files.zip');
+      // Read each file as ArrayBuffer to ensure JSZip uses our newName
+      await Promise.all(
+        processedFiles.map(async (file) => {
+          const buffer = await file.originalFile.arrayBuffer();
+          const zipPath = file.originalDir ? `${file.originalDir}/${file.newName}` : file.newName;
+          zip.file(zipPath, buffer);
+        })
+      );
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      await saveZipBlob(blob, 'renamed_files.zip');
     } catch (error) {
       console.error('Failed to zip files', error);
     } finally {
@@ -75,7 +141,7 @@ function AppContent() {
   const hasFiles = sourceFiles.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-neutral-900 font-sans selection:bg-orange-200 selection:text-orange-900">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] font-sans selection:bg-black selection:text-white">
       <div className="max-w-7xl mx-auto p-6 lg:p-12 space-y-8">
         
         {/* Header */}
@@ -92,7 +158,7 @@ function AppContent() {
             <Button 
               onClick={handleDownload} 
               disabled={!hasFiles || isProcessing}
-              className="bg-orange-600 hover:bg-orange-700 text-white shadow-orange-200"
+              className="bg-black hover:bg-neutral-800 text-white shadow-sm transition-all"
             >
               {isProcessing ? (
                 <RefreshCw size={18} className="mr-2 animate-spin" />
@@ -145,7 +211,7 @@ function AppContent() {
                             type="checkbox"
                             checked={autoResolve}
                             onChange={e => setAutoResolve(e.target.checked)}
-                            className="rounded border-neutral-300 text-orange-600 focus:ring-orange-500"
+                            className="rounded border-neutral-300 text-black focus:ring-black"
                           />
                           <span className="flex items-center gap-1">
                             <ShieldCheck size={12} />
@@ -158,7 +224,7 @@ function AppContent() {
                             type="checkbox"
                             checked={strictSequence}
                             onChange={e => setStrictSequence(e.target.checked)}
-                            className="rounded border-neutral-300 text-orange-600 focus:ring-orange-500"
+                            className="rounded border-neutral-300 text-black focus:ring-black"
                           />
                           <span className="flex items-center gap-1">
                             <ListOrdered size={12} />

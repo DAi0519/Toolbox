@@ -118,8 +118,8 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
       className={clsx(
         "relative group rounded-2xl border-2 border-dashed transition-all duration-300 ease-out overflow-hidden",
         isDragging 
-          ? "border-neutral-900 bg-neutral-50 scale-[1.01]" 
-          : "border-neutral-200 hover:border-neutral-400 bg-white"
+          ? "border-black bg-neutral-50 scale-[1.01]" 
+          : "border-neutral-200 hover:border-neutral-300 bg-transparent"
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -152,7 +152,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
           }}
           className={clsx(
             "p-4 rounded-full transition-colors duration-300",
-            isDragging ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-500 group-hover:bg-neutral-200 group-hover:text-neutral-900"
+            isDragging ? "bg-black text-white" : "bg-neutral-100 text-neutral-500 group-hover:bg-neutral-200 group-hover:text-black"
           )}
         >
           {isDragging ? <FilePlus size={32} /> : <Upload size={32} />}
@@ -171,14 +171,14 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         <div className="flex gap-3 pt-2">
           <button
             onClick={handleSelectFiles}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 active:scale-95 transition-all shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-neutral-800 active:scale-95 transition-all shadow-sm"
           >
             <FileText size={16} />
             选择文件
           </button>
           <button
             onClick={handleSelectFolder}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-neutral-700 text-sm font-medium rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 active:scale-95 transition-all shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-[var(--ink)] text-sm font-medium rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 active:scale-95 transition-all shadow-sm"
           >
             <Folder size={16} />
             选择文件夹
