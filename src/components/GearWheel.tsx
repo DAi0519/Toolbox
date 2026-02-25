@@ -46,7 +46,11 @@ const PHYSICS = {
 
 export default function GearWheel() {
   const navigate = useNavigate();
-  const rotation = useMotionValue(0);
+  
+  // Restore the wheel's focus rotation if returning from a tool page
+  const initialRotation = Number(sessionStorage.getItem('gearWheelRotation') || '0');
+  const rotation = useMotionValue(initialRotation);
+  
   const smoothRotation = useSpring(rotation, {
     stiffness: PHYSICS.stiffness,
     damping: PHYSICS.damping,
@@ -84,8 +88,39 @@ export default function GearWheel() {
   };
 
   // ─── Routing Action ───
-  const handleSelectTool = (routeId: string) => {
-    navigate(`/tool/${routeId}`);
+  const handleSelectTool = (routeId: string, index: number) => {
+    const slotAngle = index * ANGLE_STEP;
+    const currentRot = rotation.get();
+    
+    // Calculate the shortest rotation difference to bring the item to focus (0 degrees dist)
+    let diff = (-slotAngle - currentRot) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+
+    const targetRotation = currentRot + diff;
+    sessionStorage.setItem('gearWheelRotation', targetRotation.toString());
+    
+    if (Math.abs(diff) < 0.5) {
+      // If it's essentially already at the exact focus point, jump immediately
+      rotation.set(targetRotation);
+      navigate(`/tool/${routeId}`);
+    } else {
+      // Animate strictly to the absolute focus position, but faster
+      animate(rotation, targetRotation, {
+        type: 'spring',
+        stiffness: PHYSICS.snapStiffness * 1.5, // Accelerate the snap
+        damping: PHYSICS.snapDamping * 1.2, // Keep it from oscillating too wildly
+        restDelta: 0.01, // Insist on a visually strict full stop
+        onComplete: () => {
+          rotation.set(targetRotation); // Lock to absolute mathematical center
+          
+          // Introduce a deliberate pause after it rigidly locks into place
+          setTimeout(() => {
+            navigate(`/tool/${routeId}`);
+          }, 150); // 150ms of perfect stillness before transition
+        }
+      });
+    }
   };
 
   return (
@@ -157,7 +192,7 @@ function ArcItem({
   tool: { id: string; name: string };
   index: number;
   smoothRotation: MotionValue<number>;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, index: number) => void;
 }) {
   const slotAngle = index * ANGLE_STEP; // static angle for this slot
 
@@ -178,7 +213,8 @@ function ArcItem({
   // Highlight the active item (distance close to 0) with Klein Blue
   const color    = useTransform(dist, [0, 5], ['#002FA7', '#000000']);
 
-  const pointerEvents = useTransform(dist, (d) => (d < 15 ? 'auto' : 'none'));
+  // Relax pointerEvents to allow clicking unfocused items (up to 50 deg away, covers all visible items)
+  const pointerEvents = useTransform(dist, (d) => (d < 50 ? 'auto' : 'none'));
 
   return (
     <div
@@ -191,7 +227,7 @@ function ArcItem({
       }}
     >
       <motion.button
-        onClick={() => onSelect(tool.id)}
+        onClick={() => onSelect(tool.id, index)}
         style={{
           position: 'absolute',
           left: 40,
