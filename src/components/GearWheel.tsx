@@ -9,6 +9,9 @@ import {
 } from 'framer-motion';
 import { TOOLS } from '../config/tools';
 
+const WHEEL_ROTATION_KEY = 'gearWheelRotation.v2';
+const DEFAULT_FOCUS_TOOL_ID = 'batch-renamer';
+
 // Triple-repeat for seamless infinite rotation feel visually
 const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
   ...tool,
@@ -21,6 +24,12 @@ const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
 const RADIUS = 600;
 const ITEM_COUNT = REPEATED_TOOLS.length; 
 const ANGLE_STEP = 360 / ITEM_COUNT; // 10°
+
+function getDefaultRotation(): number {
+  const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
+  if (defaultIndex < 0) return 0;
+  return -(defaultIndex * ANGLE_STEP);
+}
 
 // ──── Physics ────
 // Tunable by default (Interface Craft Principle)
@@ -49,8 +58,9 @@ const PHYSICS = {
 export default function GearWheel() {
   const navigate = useNavigate();
   
-  // Restore the wheel's focus rotation if returning from a tool page
-  const initialRotation = Number(sessionStorage.getItem('gearWheelRotation') || '0');
+  // Restore prior focus in this version; otherwise default to Batch Renamer.
+  const storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
+  const initialRotation = storedRotation ? Number(storedRotation) : getDefaultRotation();
   const rotation = useMotionValue(initialRotation);
   
   const smoothRotation = useSpring(rotation, {
@@ -100,7 +110,7 @@ export default function GearWheel() {
     if (diff < -180) diff += 360;
 
     const targetRotation = currentRot + diff;
-    sessionStorage.setItem('gearWheelRotation', targetRotation.toString());
+    sessionStorage.setItem(WHEEL_ROTATION_KEY, targetRotation.toString());
     
     if (Math.abs(diff) < 0.5) {
       // If it's essentially already at the exact focus point, jump immediately
