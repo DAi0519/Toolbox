@@ -13,67 +13,67 @@ export interface ToolConfig {
 export const TOOLS: ToolConfig[] = [
   {
     id: 'color-picker',
-    name: 'Color Picker',
+    name: '色彩拾取',
     component: lazy(() => import('../tools/ColorPicker/ColorPicker'))
   },
   {
     id: 'image-tools',
-    name: 'Image Tools',
+    name: '图像处理',
     component: lazy(() => import('../tools/ImageTools/ImageTools'))
   },
   {
     id: 'typography',
-    name: 'Typography',
+    name: '字体排版',
     component: lazy(() => import('../tools/Typography/Typography'))
   },
   {
     id: 'code-format',
-    name: 'Code Format',
+    name: '代码格式化',
     component: lazy(() => import('../tools/CodeFormat/CodeFormat'))
   },
   {
     id: 'converter',
-    name: 'Converter',
+    name: '格式转换',
     component: lazy(() => import('../tools/Converter/Converter'))
   },
   {
     id: 'generator',
-    name: 'Generator',
+    name: '数据生成',
     component: lazy(() => import('../tools/Generator/Generator'))
   },
   {
     id: 'calculator',
-    name: 'Calculator',
+    name: '综合计算',
     component: lazy(() => import('../tools/Calculator/Calculator'))
   },
   {
     id: 'encoder',
-    name: 'Encoder',
+    name: '编码转换',
     component: lazy(() => import('../tools/Encoder/Encoder'))
   },
   {
     id: 'compressor',
-    name: 'Compressor',
+    name: '文件压缩',
     component: lazy(() => import('../tools/Compressor/Compressor'))
   },
   {
     id: 'validator',
-    name: 'Validator',
+    name: '数据校验',
     component: lazy(() => import('../tools/Validator/Validator'))
   },
   {
     id: 'minifier',
-    name: 'Minifier',
+    name: '代码压缩',
     component: lazy(() => import('../tools/Minifier/Minifier'))
   },
   {
     id: 'beautifier',
-    name: 'Beautifier',
+    name: '代码美化',
     component: lazy(() => import('../tools/Beautifier/Beautifier'))
   },
   {
     id: 'batch-renamer',
-    name: 'Batch Renamer',
+    name: '批量重命名',
     description: '批量文件重命名工具',
     component: lazy(() => import('../tools/BatchRenamer/BatchRenamer'))
   }

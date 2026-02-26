@@ -26,9 +26,10 @@ const ANGLE_STEP = 360 / ITEM_COUNT; // 10°
 // Tunable by default (Interface Craft Principle)
 const PHYSICS = {
   // Wheel spring feel (heavier, stiffer, more damped)
+  // Reduced damping and mass to make the wheel feel lighter overall
   stiffness: 80,
-  damping: 45,
-  mass: 3,
+  damping: 30, // Previously 45
+  mass: 1.5, // Previously 3
   
   // Drag handling
   panMultiplier: 0.1,
@@ -39,7 +40,8 @@ const PHYSICS = {
   inertiaTimeConstant: 300,
   
   // Trackpad / Mouse Wheel Scroll
-  wheelMultiplier: 0.035,
+  // Increased multiplier to reduce the "physical effort" needed to scroll
+  wheelMultiplier: 0.08, // Previously 0.035
   snapStiffness: 120,
   snapDamping: 35,
 };
@@ -230,7 +232,7 @@ function ArcItem({
         onClick={() => onSelect(tool.id, index)}
         style={{
           position: 'absolute',
-          left: 40,
+          left: 52, // Increased from 40 to slightly widen the gap with the blue dot
           top: '50%',
           translateY: '-50%',
           background: 'none',

@@ -85,7 +85,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
     <div className="space-y-6">
       {/* Rule Buttons - Static Grid */}
       <div className="grid grid-cols-3 gap-2">
-        <RuleButton icon={FileEdit} label="统一命名" onClick={() => addRule('rename')} highlight />
+        <RuleButton icon={FileEdit} label="统一命名" onClick={() => addRule('rename')} />
         <RuleButton icon={Replace} label="查找替换" onClick={() => addRule('replace')} />
         <RuleButton icon={ArrowRightToLine} label="添加前缀" onClick={() => addRule('prefix')} />
         <RuleButton icon={ArrowLeftToLine} label="添加后缀" onClick={() => addRule('suffix')} />
@@ -111,19 +111,12 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
               exit={{ opacity: 0, scale: 0.95 }}
               className={clsx(
                 "border rounded-xl p-4 shadow-sm relative",
-                rule.type === 'rename' 
-                  ? "bg-white border-black" 
-                  : "bg-white border-neutral-200"
+                "bg-white border-neutral-200"
               )}
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className={clsx(
-                    "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded",
-                    rule.type === 'rename'
-                      ? "bg-black text-white"
-                      : "bg-neutral-100 text-neutral-500"
-                  )}>
+                  <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-neutral-100 text-neutral-500">
                     {RULE_LABELS[rule.type]}
                   </span>
                   <button onClick={() => removeRule(index)} className="text-neutral-300 hover:text-red-500 transition-colors">

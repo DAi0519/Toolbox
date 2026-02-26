@@ -141,7 +141,7 @@ function AppContent() {
   const hasFiles = sourceFiles.length > 0;
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] font-sans selection:bg-black selection:text-white">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] selection:bg-black selection:text-white">
       <div className="max-w-7xl mx-auto p-6 lg:p-12 space-y-8">
         
         {/* Header */}
