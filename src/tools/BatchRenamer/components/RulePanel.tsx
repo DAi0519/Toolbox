@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { RenameRule } from '../utils/renamingUtils';
 import { Input } from './ui/Input';
-import { Trash2, Type, Hash, Replace, ArrowRightToLine, ArrowLeftToLine, FileEdit, Sparkles } from 'lucide-react';
+import { Trash2, Type, Hash, Replace, ArrowRightToLine, ArrowLeftToLine, FileEdit, Sparkles, type LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface RulePanelProps {
@@ -19,7 +19,9 @@ const RULE_LABELS: Record<RenameRule['type'], string> = {
   numbering: '序号编号',
 };
 
-const CASE_OPTIONS = [
+type CaseRuleValue = Extract<RenameRule, { type: 'case' }>['value'];
+
+const CASE_OPTIONS: Array<{ value: CaseRuleValue; label: string }> = [
   { value: 'upper', label: '全大写' },
   { value: 'lower', label: '全小写' },
   { value: 'title', label: '首字母大写' },
@@ -70,10 +72,12 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
     setRules(newRules);
   };
 
-  const applyPreset = (index: number, preset: typeof REGEX_PRESETS[0]) => {
+  const applyPreset = (index: number, preset: (typeof REGEX_PRESETS)[number]) => {
+    const targetRule = rules[index];
+    if (!targetRule || targetRule.type !== 'replace') return;
+
     updateRule(index, {
-      ...rules[index],
-      // @ts-ignore
+      ...targetRule,
       find: preset.find,
       replace: preset.replace,
       useRegex: true
@@ -206,7 +210,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                       {CASE_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => updateRule(index, { ...rule, value: opt.value as any })}
+                          onClick={() => updateRule(index, { ...rule, value: opt.value })}
                           className={clsx(
                             "px-3 py-1.5 text-xs font-medium rounded-md border transition-all",
                             rule.value === opt.value 
@@ -254,7 +258,14 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
   );
 };
 
-const RuleButton = ({ icon: Icon, label, onClick, highlight }: { icon: any, label: string, onClick: () => void, highlight?: boolean }) => (
+interface RuleButtonProps {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  highlight?: boolean;
+}
+
+const RuleButton = ({ icon: Icon, label, onClick, highlight }: RuleButtonProps) => (
   <button
     onClick={onClick}
     className={clsx(

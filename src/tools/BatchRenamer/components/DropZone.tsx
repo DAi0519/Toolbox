@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FilePlus, Folder, FileText } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -48,6 +48,14 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const folderInput = folderInputRef.current;
+    if (!folderInput) return;
+
+    folderInput.setAttribute('webkitdirectory', '');
+    folderInput.setAttribute('directory', '');
+  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -137,9 +145,6 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         ref={folderInputRef}
         type="file"
         multiple
-        // @ts-ignore - webkitdirectory is not in standard types
-        webkitdirectory=""
-        directory=""
         className="hidden"
         onChange={handleFileInput}
       />

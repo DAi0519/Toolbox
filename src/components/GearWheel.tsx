@@ -1,3 +1,4 @@
+import { useEffect, useRef, type WheelEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   motion,
@@ -6,6 +7,7 @@ import {
   animate,
   useTransform,
   MotionValue,
+  type PanInfo,
 } from 'framer-motion';
 import { TOOLS } from '../config/tools';
 
@@ -29,6 +31,14 @@ function getDefaultRotation(): number {
   const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
   if (defaultIndex < 0) return 0;
   return -(defaultIndex * ANGLE_STEP);
+}
+
+function getInitialRotation(): number {
+  const storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
+  if (!storedRotation) return getDefaultRotation();
+
+  const parsed = Number(storedRotation);
+  return Number.isFinite(parsed) ? parsed : getDefaultRotation();
 }
 
 // ──── Physics ────
@@ -57,11 +67,23 @@ const PHYSICS = {
 
 export default function GearWheel() {
   const navigate = useNavigate();
+  const wheelSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Restore prior focus in this version; otherwise default to Batch Renamer.
-  const storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
-  const initialRotation = storedRotation ? Number(storedRotation) : getDefaultRotation();
+  const initialRotation = getInitialRotation();
   const rotation = useMotionValue(initialRotation);
+
+  useEffect(() => {
+    return () => {
+      if (wheelSnapTimeoutRef.current) {
+        clearTimeout(wheelSnapTimeoutRef.current);
+      }
+      if (navigateTimeoutRef.current) {
+        clearTimeout(navigateTimeoutRef.current);
+      }
+    };
+  }, []);
   
   const smoothRotation = useSpring(rotation, {
     stiffness: PHYSICS.stiffness,
@@ -70,11 +92,11 @@ export default function GearWheel() {
   });
 
   // ─── Drag Interaction ───
-  const handlePan = (_e: any, info: any) => {
+  const handlePan = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     rotation.set(rotation.get() + info.delta.y * PHYSICS.panMultiplier);
   };
 
-  const handlePanEnd = (_e: any, info: any) => {
+  const handlePanEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const v = info.velocity.y;
     animate(rotation, rotation.get() + v * PHYSICS.inertiaMultiplier, {
       type: 'inertia',
@@ -85,11 +107,13 @@ export default function GearWheel() {
   };
 
   // ─── Scroll Interaction ───
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
     rotation.set(rotation.get() - e.deltaY * PHYSICS.wheelMultiplier);
 
-    clearTimeout((window as any).__wheelSnap);
-    (window as any).__wheelSnap = setTimeout(() => {
+    if (wheelSnapTimeoutRef.current) {
+      clearTimeout(wheelSnapTimeoutRef.current);
+    }
+    wheelSnapTimeoutRef.current = setTimeout(() => {
       const cur = rotation.get();
       animate(rotation, Math.round(cur / ANGLE_STEP) * ANGLE_STEP, {
         type: 'spring',
@@ -127,7 +151,10 @@ export default function GearWheel() {
           rotation.set(targetRotation); // Lock to absolute mathematical center
           
           // Introduce a deliberate pause after it rigidly locks into place
-          setTimeout(() => {
+          if (navigateTimeoutRef.current) {
+            clearTimeout(navigateTimeoutRef.current);
+          }
+          navigateTimeoutRef.current = setTimeout(() => {
             navigate(`/tool/${routeId}`);
           }, 150); // 150ms of perfect stillness before transition
         }

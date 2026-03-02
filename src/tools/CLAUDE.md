@@ -15,6 +15,7 @@ Validator/Validator.tsx: 数据校验工具
 Minifier/Minifier.tsx: 代码压缩工具
 Beautifier/Beautifier.tsx: 代码美化工具
 BatchRenamer/: 批量重命名工具(完整实现，见子文档)
+ImageStudio/: AI图像生成工具(全屏，Gemini API，见子文档)
 
 对外暴露
 各工具通过 config/tools.ts 懒加载注册，无统一导出入口

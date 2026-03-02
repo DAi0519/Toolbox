@@ -40,9 +40,13 @@ function App() {
                 key={tool.id}
                 path={`/tool/${tool.id}`}
                 element={
-                  <ToolLayout title={tool.name}>
+                  tool.fullscreen ? (
                     <tool.component />
-                  </ToolLayout>
+                  ) : (
+                    <ToolLayout title={tool.name}>
+                      <tool.component />
+                    </ToolLayout>
+                  )
                 }
               />
             ))}

@@ -19,8 +19,7 @@ function escapeRegExp(string: string) {
 }
 
 export const applyRules = (name: string, rules: RenameRule[], index: number): string => {
-  let currentName = name;
-  const nameParts = currentName.split('.');
+  const nameParts = name.split('.');
   const ext = nameParts.length > 1 ? nameParts.pop() : '';
   let baseName = nameParts.join('.');
 
@@ -35,7 +34,7 @@ export const applyRules = (name: string, rules: RenameRule[], index: number): st
           try {
             const pattern = rule.useRegex ? rule.find : escapeRegExp(rule.find);
             baseName = baseName.replace(new RegExp(pattern, flags), rule.replace);
-          } catch (e) {
+          } catch {
             // Invalid regex, ignore
           }
         }
@@ -51,11 +50,12 @@ export const applyRules = (name: string, rules: RenameRule[], index: number): st
         if (rule.value === 'lower') baseName = baseName.toLowerCase();
         if (rule.value === 'title') baseName = baseName.replace(/\b\w/g, c => c.toUpperCase());
         break;
-      case 'numbering':
+      case 'numbering': {
         const num = rule.start + (index * rule.step);
         const numStr = num.toString().padStart(rule.format.length, '0');
         baseName = baseName + numStr;
         break;
+      }
     }
   });
 
@@ -123,7 +123,7 @@ export const resolveConflicts = (items: FileItem[]): FileItem[] => {
         const prefix = match[1];
         const numStr = match[2];
         const ext = match[3] || '';
-        const num = parseInt(numStr);
+        const num = parseInt(numStr, 10);
         
         // Increment
         const nextNum = num + 1;

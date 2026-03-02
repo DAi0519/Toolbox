@@ -7,7 +7,9 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+type MotionButtonProps = React.ComponentPropsWithoutRef<typeof motion.button>;
+
+interface ButtonProps extends MotionButtonProps {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
 }
@@ -37,7 +39,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className
         )}
         whileTap={{ scale: 0.98 }}
-        {...(props as any)}
+        {...props}
       >
         {children}
       </motion.button>
