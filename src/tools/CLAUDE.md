@@ -2,7 +2,7 @@
 > L2 | 父级: /CLAUDE.md
 
 成员清单
-ColorPicker/ColorPicker.tsx: 色彩拾取工具
+ColorPicker/: 图像色彩拾取工具(全屏，基于 Canvas 颜色量化和 SVG 色轮，见子文档)
 ImageTools/ImageTools.tsx: 图像处理工具
 Typography/Typography.tsx: 字体排版工具
 CodeFormat/CodeFormat.tsx: 代码格式化工具
