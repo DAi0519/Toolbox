@@ -82,7 +82,7 @@ export const Controls: React.FC<ControlsProps> = ({
             style={{ userSelect: 'text' }}
           />
           <div className="absolute bottom-3 right-3 pointer-events-none">
-            <span className={`text-[10px] font-mono ${settings.prompt.length > 500 ? 'text-[var(--accent)]' : 'text-neutral-300'}`}>
+            <span className={`text-[10px] font-sans ${settings.prompt.length > 500 ? 'text-[var(--accent)]' : 'text-neutral-300'}`}>
               {settings.prompt.length}
             </span>
           </div>

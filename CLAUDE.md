@@ -29,8 +29,7 @@ index.css - 全局样式，CSS变量定义(--ink, --bg, --accent)
 
 - **BatchRenamer** (最完整): 拖拽上传、多规则重命名、冲突解决、ZIP导出
 - **ImageStudio** (全屏/AI): Gemini API 图像生成，API Key 管理(localStorage)，History Drawer，全屏布局
-- **ColorPicker** (全屏): 图片拾色器，复刻自 Iris，Canvas 提取量化主色，Framer Motion 驱动 SVG 色轮动画
-- 其他11个工具: ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
+- 其他12个工具: ColorPicker, ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
 
 ## 文档维护规则
 
@@ -46,7 +45,7 @@ index.css - 全局样式，CSS变量定义(--ink, --bg, --accent)
 
 ## 技术细节
 
-- 字体: 自定义 DouyinSansBold (抖音黑体)
+- 字体: 自定义 DouyinSansBold (抖音黑体)，全项目统一使用。Tailwind 中用 `font-sans`（已映射），**禁止使用 `font-serif` / `font-mono`**
 - 主色: Klein Blue #002FA7
 - 物理动画: 弹簧刚度80, 阻尼30, 质量1.5
 - 依赖: `@google/genai` (ImageStudio 使用 Gemini API 图像生成)

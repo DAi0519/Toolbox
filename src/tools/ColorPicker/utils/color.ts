@@ -1,15 +1,9 @@
 type RGB = [number, number, number];
 
-/**
- * Get squared Euclidean distance between two colors
- */
 function getColorDistance(c1: RGB, c2: RGB): number {
   return (c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2;
 }
 
-/**
- * Convert RGB array to HEX string
- */
 export function rgbToHex([r, g, b]: RGB): string {
   return (
     '#' +
@@ -22,9 +16,6 @@ export function rgbToHex([r, g, b]: RGB): string {
   );
 }
 
-/**
- * Convert RGB to HSL for sorting
- */
 export function rgbToHsl([r, g, b]: RGB): [number, number, number] {
   r /= 255;
   g /= 255;
@@ -52,6 +43,48 @@ export function rgbToHsl([r, g, b]: RGB): [number, number, number] {
     h /= 6;
   }
   return [h, s, l];
+}
+
+export function hexToRgbArray(hex: string): RGB {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+}
+
+export function hexToRgbString(hex: string): string {
+  const [r, g, b] = hexToRgbArray(hex);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+export function hexToHslString(hex: string): string {
+  const rgb = hexToRgbArray(hex);
+  const [h, s, l] = rgbToHsl(rgb);
+  return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
+}
+
+export function formatColor(hex: string, format: 'hex' | 'rgb' | 'hsl'): string {
+  switch (format) {
+    case 'hex':
+      return hex.toUpperCase();
+    case 'rgb':
+      return hexToRgbString(hex);
+    case 'hsl':
+      return hexToHslString(hex);
+  }
+}
+
+export function exportAsCSS(colors: string[]): string {
+  const vars = colors
+    .map((c, i) => `  --palette-${i + 1}: ${c};`)
+    .join('\n');
+  return `:root {\n${vars}\n}`;
+}
+
+export function exportAsJSON(colors: string[]): string {
+  return JSON.stringify({ palette: colors }, null, 2);
 }
 
 /**
@@ -153,19 +186,34 @@ export async function extractColors(imageSrc: string, count: number = 12): Promi
         }
       }
 
-      // Filter out empty clusters and convert to Hex
-      const finalColors = centroids
-        .filter((_, i) => clusters[i].length > 0)
-        // Sort by hue for a beautiful color wheel layout
-        .sort((a, b) => {
-          const hslA = rgbToHsl(a);
-          const hslB = rgbToHsl(b);
-          return hslA[0] - hslB[0];
-        })
-        .map(rgbToHex);
+      const clusterInfo = centroids
+        .map((centroid, i) => ({
+          rgb: centroid,
+          count: clusters[i].length,
+        }))
+        .filter((entry) => entry.count > 0)
+        .map((entry) => ({
+          ...entry,
+          hex: rgbToHex(entry.rgb),
+          hue: rgbToHsl(entry.rgb)[0],
+        }));
 
-      // Return unique hex colors
-      const uniqueColors = Array.from(new Set(finalColors));
+      if (clusterInfo.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      // Dominant color first, while keeping the ring hue-continuous.
+      const dominant = clusterInfo.reduce((max, current) =>
+        current.count > max.count ? current : max
+      );
+      const hueSorted = [...clusterInfo].sort((a, b) => a.hue - b.hue);
+      const dominantIndex = hueSorted.findIndex((entry) => entry.hex === dominant.hex);
+      const wheelOrdered = dominantIndex >= 0
+        ? [...hueSorted.slice(dominantIndex), ...hueSorted.slice(0, dominantIndex)]
+        : hueSorted;
+
+      const uniqueColors = Array.from(new Set(wheelOrdered.map((entry) => entry.hex)));
       resolve(uniqueColors);
     };
 
