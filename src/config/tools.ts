@@ -15,7 +15,8 @@ export const TOOLS: ToolConfig[] = [
   {
     id: 'color-picker',
     name: '色彩拾取',
-    component: lazy(() => import('../tools/ColorPicker/ColorPicker'))
+    component: lazy(() => import('../tools/ColorPicker/ColorPicker')),
+    fullscreen: true,
   },
   {
     id: 'image-tools',
