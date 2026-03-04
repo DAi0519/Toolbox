@@ -150,14 +150,10 @@ export default function ColorPicker() {
       >
         <button
           onClick={() => navigate('/')}
-          className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[13px] font-extrabold tracking-wider text-black/40 hover:text-black hover:bg-black/5 transition-colors leading-none"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] font-extrabold tracking-wider text-black/40 hover:text-black hover:bg-black/5 transition-colors"
         >
-          <span className="inline-flex items-center justify-center">
-            <ArrowLeft size={16} strokeWidth={2.5} />
-          </span>
-          <span className="inline-flex items-center justify-center leading-none">
-            返回主页
-          </span>
+          <ArrowLeft size={16} strokeWidth={2.5} className="-ml-0.5" />
+          <span className="mt-[1px] -mr-[0.05em]">返回主页</span>
         </button>
       </motion.div>
 

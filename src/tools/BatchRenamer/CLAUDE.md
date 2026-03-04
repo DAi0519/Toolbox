@@ -1,5 +1,5 @@
 # BatchRenamer/
-> L2 | 父级: src/tools/CLAUDE.md
+> L3 | 父级: src/tools/CLAUDE.md
 
 成员清单
 BatchRenamer.tsx: 主组件，useState管理files/rules/autoResolve/strictSequence，JSZip导出

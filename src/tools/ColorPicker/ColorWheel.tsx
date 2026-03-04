@@ -78,7 +78,7 @@ const BoldUploadIcon = ({ x, y }: { x: number; y: number }) => (
     transform={`translate(${x - 12} ${y - 12})`}
     fill="none"
     stroke="currentColor"
-    strokeWidth="2.5"
+    strokeWidth="2.8"
     strokeLinecap="round"
     strokeLinejoin="round"
   >
@@ -232,9 +232,9 @@ export default function ColorWheel({
               cx={cx} cy={cx} r={WHEEL.orbitRadius}
               fill="none"
               stroke="var(--ink)"
-              strokeOpacity="0.1"
-              strokeWidth="1.5"
-              strokeDasharray="4 12"
+              strokeOpacity="0.2"
+              strokeWidth="2"
+              strokeDasharray="5 10"
               initial={{ rotate: 0 }}
               animate={{ rotate: 360 }}
               transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
@@ -268,7 +268,7 @@ export default function ColorWheel({
                   initial={false}
                   animate={{
                     fill: colorVisible ? previewColors[i] : '#ffffff',
-                    stroke: colorVisible ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.06)',
+                    stroke: colorVisible ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.16)',
                     opacity: previewFocus === null
                       ? 0.96
                       : focusDistance === 0
@@ -293,19 +293,19 @@ export default function ColorWheel({
               r={WHEEL.imageRadius + 18}
               fill="none"
               stroke="var(--ink)"
-              strokeOpacity="0.08"
-              strokeWidth="1"
-              strokeDasharray="2 10"
-              animate={{ rotate: -360, opacity: [0.08, 0.16, 0.08] }}
+              strokeOpacity="0.14"
+              strokeWidth="1.2"
+              strokeDasharray="3 9"
+              animate={{ rotate: -360, opacity: [0.16, 0.3, 0.16] }}
               transition={{ rotate: { duration: 80, repeat: Infinity, ease: 'linear' }, opacity: { duration: 4, repeat: Infinity, ease: 'easeInOut' } }}
               style={{ transformOrigin: `${cx}px ${cx}px` }}
             />
             <motion.g
-              style={{ color: 'var(--ink)' }}
+              style={{ color: 'rgba(0,0,0,0.9)' }}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{
-                opacity: [0.32, 0.7, 0.32],
-                scale: [0.96, 1, 0.96],
+                opacity: [0.7, 1, 0.7],
+                scale: [0.98, 1.02, 0.98],
                 y: [2, -1, 2],
               }}
               transition={{
@@ -358,11 +358,11 @@ export default function ColorWheel({
             cy={cx}
             r={WHEEL.imageRadius}
             fill="transparent"
-            stroke="rgba(0,0,0,0.15)"
-            strokeWidth="1.5"
+            stroke="rgba(0,0,0,0.26)"
+            strokeWidth="2"
             className="cursor-pointer"
             onClick={onUploadClick}
-            animate={{ strokeOpacity: [0.16, 0.28, 0.16] }}
+            animate={{ strokeOpacity: [0.45, 0.78, 0.45] }}
             transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
           />
         ) : (

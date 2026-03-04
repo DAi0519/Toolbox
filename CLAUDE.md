@@ -29,7 +29,8 @@ index.css - 全局样式，CSS变量定义(--ink, --bg, --accent)
 
 - **BatchRenamer** (最完整): 拖拽上传、多规则重命名、冲突解决、ZIP导出
 - **ImageStudio** (全屏/AI): Gemini API 图像生成，API Key 管理(localStorage)，History Drawer，全屏布局
-- 其他12个工具: ColorPicker, ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
+- **ColorPicker** (全屏): 图片色板提取(K-Means 12色)、交互SVG色轮、HEX/RGB/HSL切换、CSS变量/JSON导出
+- 其他11个工具: ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
 
 ## 文档维护规则
 
