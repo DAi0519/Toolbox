@@ -62,7 +62,7 @@ export const FileList: React.FC<FileListProps> = ({ files, onRemove }) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => onRemove(file.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-red-500 shrink-0"
+                  className="opacity-80 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity text-neutral-400 hover:text-red-500 shrink-0"
                 >
                   <X size={18} />
                 </Button>

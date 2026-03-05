@@ -1,1 +1,5 @@
-export default function Compressor() { return <div style={{padding: 40}}><h2>Compressor</h2></div>; }
+import ToolPlaceholder from '../../components/ToolPlaceholder';
+
+export default function Compressor() {
+  return <ToolPlaceholder title="文件压缩" subtitle="文件压缩能力正在接入中，将支持质量调节和批量处理。" />;
+}

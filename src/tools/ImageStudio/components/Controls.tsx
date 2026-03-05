@@ -8,7 +8,6 @@ interface ControlsProps {
   onSettingsChange: (settings: GenerationSettings) => void;
   onGenerate: () => void;
   isGenerating: boolean;
-  onOpenHistory: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -16,7 +15,6 @@ export const Controls: React.FC<ControlsProps> = ({
   onSettingsChange,
   onGenerate,
   isGenerating,
-  onOpenHistory,
 }) => {
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -53,23 +51,6 @@ export const Controls: React.FC<ControlsProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-neutral-50 border-r border-neutral-200 p-8 space-y-10 overflow-y-auto w-full md:w-80 lg:w-96 flex-shrink-0 transition-colors duration-300">
-
-      {/* Brand Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-neutral-900 tracking-tight">图像创作实验室</h2>
-        </div>
-        <button
-          onClick={onOpenHistory}
-          title="历史记录"
-          className="p-2 rounded text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </button>
-      </div>
-
       {/* Prompt Input */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-neutral-500 tracking-wider">提示词 PROMPT</label>

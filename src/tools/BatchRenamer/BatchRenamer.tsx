@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { FileList } from './components/FileList';
 import { RulePanel } from './components/RulePanel';
@@ -9,6 +9,7 @@ import { Download, RefreshCw, Trash2, ShieldCheck, ListOrdered } from 'lucide-re
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToolHeaderActions } from '../../components/ToolHeaderActionsContext';
 
 const saveZipBlob = async (blob: Blob, filename: string): Promise<void> => {
   if (!('showSaveFilePicker' in window)) {
@@ -139,37 +140,35 @@ function AppContent() {
   };
 
   const hasFiles = sourceFiles.length > 0;
+  const headerActions = useMemo(
+    () => (
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="ghost" onClick={handleClearAll} disabled={!hasFiles}>
+          <Trash2 size={16} className="mr-1.5" />
+          清空
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleDownload}
+          disabled={!hasFiles || isProcessing}
+          className="bg-black hover:bg-neutral-800 text-white shadow-sm transition-all"
+        >
+          {isProcessing ? (
+            <RefreshCw size={16} className="mr-1.5 animate-spin" />
+          ) : (
+            <Download size={16} className="mr-1.5" />
+          )}
+          {isProcessing ? '处理中...' : '导出'}
+        </Button>
+      </div>
+    ),
+    [hasFiles, isProcessing]
+  );
+  useToolHeaderActions(headerActions);
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] selection:bg-black selection:text-white">
       <div className="max-w-7xl mx-auto p-6 lg:p-12 space-y-8">
-        
-        {/* Header */}
-        <header className="flex justify-between items-end pb-6 border-b border-neutral-200">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-900">文件重命名</h1>
-            <p className="text-neutral-500 mt-1 font-medium">批量处理工具</p>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={handleClearAll} disabled={!hasFiles}>
-              <Trash2 size={18} className="mr-2" />
-              清空
-            </Button>
-            <Button 
-              onClick={handleDownload} 
-              disabled={!hasFiles || isProcessing}
-              className="bg-black hover:bg-neutral-800 text-white shadow-sm transition-all"
-            >
-              {isProcessing ? (
-                <RefreshCw size={18} className="mr-2 animate-spin" />
-              ) : (
-                <Download size={18} className="mr-2" />
-              )}
-              {isProcessing ? '处理中...' : '导出文件'}
-            </Button>
-          </div>
-        </header>
-
         <main>
           <AnimatePresence mode="wait">
             {!hasFiles ? (

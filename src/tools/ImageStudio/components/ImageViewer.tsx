@@ -90,13 +90,13 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
             <>
               <button
                 onClick={() => setSelectedIndex((prev) => (prev > 0 ? prev - 1 : session.images.length - 1))}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-90 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-white"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button
                 onClick={() => setSelectedIndex((prev) => (prev < session.images.length - 1 ? prev + 1 : 0))}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-90 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-white"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>

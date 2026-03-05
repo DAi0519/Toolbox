@@ -10,6 +10,41 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .tool-header-actions {
+    @apply flex h-11 shrink-0 items-center gap-2;
+  }
+
+  .tool-header-actions > * {
+    @apply inline-flex h-11 items-center;
+  }
+
+  .tool-header-actions button,
+  .tool-header-actions a {
+    @apply leading-none;
+  }
+
+  .tool-header-action {
+    @apply inline-flex h-11 items-center gap-1.5 rounded-md px-2 text-xs font-medium leading-none text-black/50 transition-colors;
+  }
+
+  .tool-header-action:hover {
+    @apply text-black;
+  }
+
+  .tool-header-action:focus-visible {
+    @apply outline-none ring-2 ring-black/20;
+  }
+
+  .tool-header-action-icon {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center;
+  }
+
+  .tool-header-action-label {
+    @apply inline-flex items-center pb-[1px] leading-none;
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -30,7 +65,6 @@ body {
   color: var(--ink);
   font-family: 'DouyinSansBold', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  user-select: none;
 }
 
 button {

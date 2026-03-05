@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import ToolHeader from '../../components/ToolHeader';
 import { Controls } from './components/Controls';
 import { ImageViewer } from './components/ImageViewer';
 import { ApiKeyModal } from './components/ApiKeyModal';
@@ -136,8 +136,6 @@ function saveHistory(history: GenerationSession[]) {
 }
 
 const ImageStudio: React.FC = () => {
-  const navigate = useNavigate();
-
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(STORAGE_KEY_API) || '');
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(() => !localStorage.getItem(STORAGE_KEY_API));
   const [apiKeyRequired, setApiKeyRequired] = useState<boolean>(() => !localStorage.getItem(STORAGE_KEY_API));
@@ -205,8 +203,7 @@ const ImageStudio: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white text-neutral-900 selection:bg-blue-100 selection:text-blue-900">
-
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-white text-neutral-900 selection:bg-blue-100 selection:text-blue-900">
       {/* API Key Modal */}
       <ApiKeyModal
         isOpen={apiKeyModalOpen}
@@ -215,96 +212,75 @@ const ImageStudio: React.FC = () => {
         onClose={() => !apiKeyRequired && setApiKeyModalOpen(false)}
       />
 
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-neutral-100 z-20">
-        <button onClick={() => navigate('/')} className="text-neutral-500 hover:text-neutral-900 flex items-center gap-1.5 text-sm">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          返回
-        </button>
-        <span className="font-semibold text-base">图像创作实验室</span>
-        <button
-          onClick={() => setApiKeyModalOpen(true)}
-          className="flex items-center gap-1.5 text-xs text-neutral-500"
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${apiKey ? 'bg-green-500' : 'bg-red-400'}`}></span>
-          Key
-        </button>
-      </div>
-
-      {/* Sidebar Controls */}
-      <Controls
-        settings={settings}
-        onSettingsChange={setSettings}
-        onGenerate={handleGenerate}
-        isGenerating={isGenerating}
-        onOpenHistory={() => setHistoryOpen(true)}
-      />
-
-      {/* Main Preview Area */}
-      <div className="flex-1 flex flex-col relative h-full transition-all">
-
-        {/* Top Bar (Desktop) */}
-        <div className="hidden md:flex items-center justify-between p-6 absolute top-0 left-0 right-0 z-20 pointer-events-none">
-          {/* Back button */}
-          <div className="pointer-events-auto">
+      <ToolHeader
+        title="图像创作实验室"
+        rightSlot={(
+          <>
             <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur border border-neutral-200 shadow-sm hover:shadow-md transition-all text-xs font-medium text-neutral-500 hover:text-neutral-900"
+              onClick={() => setHistoryOpen(true)}
+              className="tool-header-action"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg className="tool-header-action-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              返回
+              <span className="tool-header-action-label">历史</span>
             </button>
-          </div>
-
-          {/* API Key status */}
-          <div className="pointer-events-auto">
             <button
               onClick={() => setApiKeyModalOpen(true)}
-              className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur border border-neutral-200 shadow-sm hover:shadow-md transition-all text-xs font-medium text-neutral-500 hover:text-neutral-900"
+              className="tool-header-action group gap-2"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${apiKey ? 'bg-green-500' : 'bg-red-400'} opacity-60 group-hover:opacity-100 transition-opacity`}></span>
-              API Key
+              <span className={`h-1.5 w-1.5 rounded-full ${apiKey ? 'bg-green-500' : 'bg-red-400'} opacity-70 group-hover:opacity-100 transition-opacity`} />
+              <span className="tool-header-action-label">API Key</span>
             </button>
-          </div>
-        </div>
-
-        {/* Error Notification */}
-        {error && (
-          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-sm px-4">
-            <div className="bg-white text-red-600 px-4 py-3 rounded shadow-lg border-l-4 border-red-500 flex items-start gap-3 ring-1 ring-black/5">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <div className="flex-1">
-                <p className="text-sm font-medium">{error}</p>
-              </div>
-              <button onClick={() => setError(null)} className="text-neutral-400 hover:text-neutral-800">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          </>
         )}
+      />
 
-        <ImageViewer
-          key={currentSession?.id ?? 'empty-session'}
-          session={currentSession}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row overflow-hidden">
+        {/* Sidebar Controls */}
+        <Controls
+          settings={settings}
+          onSettingsChange={setSettings}
+          onGenerate={handleGenerate}
           isGenerating={isGenerating}
         />
 
-        {/* History Drawer (overlaid on image area) */}
-        <HistoryDrawer
-          history={history}
-          onSelect={(session) => setCurrentSession(session)}
-          onClose={() => setHistoryOpen(false)}
-          isOpen={historyOpen}
-          onClear={handleClearHistory}
-        />
+        {/* Main Preview Area */}
+        <div className="relative flex h-full flex-1 flex-col transition-all">
+          {/* Error Notification */}
+          {error && (
+            <div className="absolute left-1/2 top-6 z-50 w-full max-w-sm -translate-x-1/2 px-4">
+              <div className="flex items-start gap-3 rounded border-l-4 border-red-500 bg-white px-4 py-3 text-red-600 shadow-lg ring-1 ring-black/5">
+                <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{error}</p>
+                </div>
+                <button onClick={() => setError(null)} className="text-neutral-400 hover:text-neutral-800">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <ImageViewer
+            key={currentSession?.id ?? 'empty-session'}
+            session={currentSession}
+            isGenerating={isGenerating}
+          />
+
+          {/* History Drawer (overlaid on image area) */}
+          <HistoryDrawer
+            history={history}
+            onSelect={(session) => setCurrentSession(session)}
+            onClose={() => setHistoryOpen(false)}
+            isOpen={historyOpen}
+            onClear={handleClearHistory}
+          />
+        </div>
       </div>
     </div>
   );

@@ -165,7 +165,7 @@ export default function ColorPalette({
                   e.stopPropagation();
                   copyToClipboard(formatColor(color, format), color);
                 }}
-                className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${isActive ? 'text-black' : 'text-black/30 hover:text-black/60'}`}
+                className={`flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity ${isActive ? 'text-black' : 'text-black/40 hover:text-black/60'}`}
                 title="Copy"
               >
                 <motion.span

@@ -1,1 +1,5 @@
-export default function Generator() { return <div style={{padding: 40}}><h2>Generator</h2></div>; }
+import ToolPlaceholder from '../../components/ToolPlaceholder';
+
+export default function Generator() {
+  return <ToolPlaceholder title="数据生成" subtitle="数据生成器正在建设中，将支持 mock 数据与规则化批量生成。" />;
+}

@@ -169,6 +169,7 @@ export default function GearWheel() {
         inset: 0,
         overflow: 'hidden',
         touchAction: 'none',
+        userSelect: 'none',
         cursor: 'grab',
       }}
       onPan={handlePan}
