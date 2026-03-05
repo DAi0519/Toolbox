@@ -76,7 +76,7 @@ export default function ColorPalette({
   const onColor = lum > 0.5 ? 'text-black/70' : 'text-white/90';
 
   return (
-    <div className="flex flex-col h-full w-full max-w-[280px] min-w-0 gap-5 font-bold">
+    <div className="flex h-full w-full min-w-0 flex-col gap-4 font-bold md:max-w-[280px] md:gap-5">
       {/* ── Color preview card ── */}
       <AnimatePresence mode="wait">
         {active && (
@@ -92,7 +92,7 @@ export default function ColorPalette({
           >
             <div className={`px-5 py-6 flex flex-col gap-1.5 ${onColor}`}>
               <div className="flex items-center justify-between">
-                <span className="text-xl tracking-widest uppercase">
+                <span className="text-lg tracking-[0.12em] uppercase sm:text-xl sm:tracking-widest">
                   {formatColor(active, format)}
                 </span>
                 <motion.span

@@ -7,6 +7,7 @@ import { HistoryDrawer } from './components/HistoryDrawer';
 import { generateImages } from './services/geminiService';
 import { AspectRatio, ImageSize } from './types';
 import type { GenerationSession, GenerationSettings } from './types';
+import { useViewport } from '../../hooks/useViewport';
 
 const STORAGE_KEY_API = 'playbox.imageStudio.apiKey';
 const STORAGE_KEY_HISTORY = 'playbox.imageStudio.history';
@@ -152,6 +153,19 @@ const ImageStudio: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<GenerationSession[]>(loadHistory);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const { isMobile, viewportHeight } = useViewport();
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => {
+      setToast((current) => (current === message ? null : current));
+    }, 2200);
+  }, []);
+
+  const canGenerate = settings.prompt.trim().length > 0 && Boolean(apiKey);
+  const keyboardInset = typeof window === 'undefined' ? 0 : Math.max(0, window.innerHeight - viewportHeight);
+  const isKeyboardOpen = isMobile && keyboardInset > 140;
 
   const handleSaveApiKey = (key: string) => {
     localStorage.setItem(STORAGE_KEY_API, key);
@@ -177,6 +191,7 @@ const ImageStudio: React.FC = () => {
       };
 
       setCurrentSession(newSession);
+      showToast(`已生成 ${images.length} 张图像`);
       setHistory((prev) => {
         const sessionForHistory = prepareSessionForStorage(newSession);
         const nextHistory = sessionForHistory ? [...prev, sessionForHistory] : [...prev];
@@ -200,10 +215,11 @@ const ImageStudio: React.FC = () => {
   const handleClearHistory = () => {
     setHistory([]);
     saveHistory([]);
+    showToast('历史记录已清空');
   };
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-white text-neutral-900 selection:bg-blue-100 selection:text-blue-900">
+    <div className="flex h-full min-h-full w-full flex-col overflow-x-hidden bg-white pb-[var(--safe-bottom)] text-neutral-900 selection:bg-blue-100 selection:text-blue-900 md:h-[100dvh] md:min-h-[100dvh] md:overflow-hidden">
       {/* API Key Modal */}
       <ApiKeyModal
         isOpen={apiKeyModalOpen}
@@ -236,20 +252,26 @@ const ImageStudio: React.FC = () => {
         )}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row overflow-hidden">
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden"
+        style={isMobile
+          ? { paddingBottom: isKeyboardOpen ? '0px' : 'calc(86px + var(--safe-bottom))' }
+          : undefined}
+      >
         {/* Sidebar Controls */}
         <Controls
           settings={settings}
           onSettingsChange={setSettings}
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
+          showGenerateButton={false}
         />
 
         {/* Main Preview Area */}
-        <div className="relative flex h-full flex-1 flex-col transition-all">
+        <div className="relative flex min-h-[420px] flex-1 flex-col transition-all md:min-h-0">
           {/* Error Notification */}
           {error && (
-            <div className="absolute left-1/2 top-6 z-50 w-full max-w-sm -translate-x-1/2 px-4">
+            <div className="pointer-events-none absolute bottom-3 left-1/2 z-50 w-full max-w-[min(92vw,28rem)] -translate-x-1/2 px-3 md:bottom-auto md:top-6 md:px-4">
               <div className="flex items-start gap-3 rounded border-l-4 border-red-500 bg-white px-4 py-3 text-red-600 shadow-lg ring-1 ring-black/5">
                 <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -257,7 +279,7 @@ const ImageStudio: React.FC = () => {
                 <div className="flex-1">
                   <p className="text-sm font-medium">{error}</p>
                 </div>
-                <button onClick={() => setError(null)} className="text-neutral-400 hover:text-neutral-800">
+                <button onClick={() => setError(null)} className="pointer-events-auto text-neutral-400 hover:text-neutral-800">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -270,6 +292,7 @@ const ImageStudio: React.FC = () => {
             key={currentSession?.id ?? 'empty-session'}
             session={currentSession}
             isGenerating={isGenerating}
+            onNotify={showToast}
           />
 
           {/* History Drawer (overlaid on image area) */}
@@ -282,6 +305,35 @@ const ImageStudio: React.FC = () => {
           />
         </div>
       </div>
+
+      <div
+        className={`fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200/80 bg-white/95 backdrop-blur transition-all duration-200 md:hidden ${
+          isKeyboardOpen ? 'pointer-events-none translate-y-full opacity-0' : 'translate-y-0 opacity-100'
+        }`}
+      >
+        <div className="mx-auto flex max-w-screen-sm flex-col gap-2 px-4 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
+          {!canGenerate && (
+            <p className="text-center text-xs text-neutral-500">
+              {!apiKey ? '请先设置 API Key' : '请输入提示词后再生成'}
+            </p>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate || isGenerating}
+            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-semibold tracking-wide text-white shadow-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isGenerating ? `生成中${settings.numberOfImages > 1 ? ` (${settings.numberOfImages})` : ''}` : '生成图像'}
+          </button>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+var(--safe-bottom))] z-50 flex justify-center px-4 md:bottom-6">
+          <div className="rounded-full bg-neutral-900 px-4 py-2 text-xs font-medium text-white shadow-lg">
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

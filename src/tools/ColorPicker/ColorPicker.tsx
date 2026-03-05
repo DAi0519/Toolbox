@@ -5,6 +5,7 @@ import ToolHeader from '../../components/ToolHeader';
 import ColorWheel from './ColorWheel';
 import ColorPalette from './ColorPalette';
 import { extractColors } from './utils/color';
+import { useViewport } from '../../hooks/useViewport';
 
 /* ─────────────────────────────────────────────────────────
  * ANIMATION STORYBOARD — ColorPicker (page level)
@@ -26,6 +27,7 @@ const SPRINGS = {
 };
 
 export default function ColorPicker() {
+  const { isMobile } = useViewport();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -119,9 +121,12 @@ export default function ColorPicker() {
 
   const hasPalette = colors.length > 0;
   const hasImageState = imageSrc !== null || colors.length > 0;
+  const wheelSize = isMobile
+    ? 'clamp(220px, min(60vh, 88vw), 520px)'
+    : 'clamp(320px, min(70vh, 70vw), 720px)';
 
   return (
-    <div className="flex h-screen w-full flex-col bg-[var(--bg)] text-[var(--ink)]">
+    <div className="flex h-[100dvh] min-h-[100dvh] w-full flex-col bg-[var(--bg)] text-[var(--ink)]">
       <ToolHeader
         title="色彩拾取"
         rightSlot={(
@@ -149,7 +154,7 @@ export default function ColorPicker() {
       />
 
       <div
-        className="relative flex flex-1 items-center justify-center overflow-hidden"
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
@@ -179,13 +184,13 @@ export default function ColorPicker() {
               transition={SPRINGS.overlay}
             >
               <motion.div
-                className="rounded-2xl border-2 border-black/20 bg-white px-12 py-10 text-center shadow-2xl shadow-black/10"
+                className="rounded-2xl border-2 border-black/20 bg-white px-6 py-7 text-center shadow-2xl shadow-black/10 sm:px-12 sm:py-10"
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
                 exit={{ scale: 0.95 }}
                 transition={SPRINGS.overlay}
               >
-                <p className="text-xl font-extrabold uppercase tracking-widest text-black">
+                <p className="text-lg font-extrabold uppercase tracking-widest text-black sm:text-xl">
                   松开提取色板
                 </p>
                 <p className="mt-3 text-sm font-bold uppercase tracking-wider text-black/30">JPG / PNG / WebP</p>
@@ -195,18 +200,22 @@ export default function ColorPicker() {
         </AnimatePresence>
 
         {/* ── Main layout ── */}
-        <div className={`
-          flex items-center justify-center gap-12 lg:gap-24
-          w-full h-full px-6 py-16
-          ${hasPalette ? 'lg:px-12' : ''}
-          transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]
-        `}>
+        <div
+          className={`
+            flex h-full w-full flex-col items-center justify-start gap-6 px-4 py-6 sm:px-6 md:flex-row md:items-center md:justify-center md:gap-12 md:py-10 lg:gap-24
+            ${hasPalette ? 'md:px-12' : ''}
+            transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]
+          `}
+          style={{
+            paddingBottom: hasPalette && isMobile ? 'min(48vh, 360px)' : undefined,
+          }}
+        >
           {/* Wheel container */}
           <motion.div
-            className="flex-shrink-0 flex items-center justify-center"
+            className="flex shrink-0 items-center justify-center"
             style={{
-              width:  'clamp(320px, min(70vh, 70vw), 720px)',
-              height: 'clamp(320px, min(70vh, 70vw), 720px)',
+              width: wheelSize,
+              height: wheelSize,
             }}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -227,7 +236,7 @@ export default function ColorPicker() {
           <AnimatePresence>
             {hasPalette && (
               <motion.div
-                className="hidden md:flex h-[min(560px,70vh)] flex-shrink-0"
+                className="hidden h-[min(560px,70vh)] flex-shrink-0 md:flex"
                 initial={{ opacity: 0, x: 24 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 24 }}
@@ -247,7 +256,11 @@ export default function ColorPicker() {
         <AnimatePresence>
           {hasPalette && (
             <motion.div
-              className="md:hidden absolute bottom-0 left-0 right-0 z-20 max-h-[45vh] overflow-y-auto border-t border-black/5 bg-white/95 px-4 py-6 backdrop-blur-xl"
+              className="absolute bottom-0 left-0 right-0 z-20 max-h-[48vh] overflow-y-auto border-t border-black/5 bg-white/95 px-4 pb-[calc(var(--safe-bottom)+1.25rem)] pt-5 backdrop-blur-xl md:hidden"
+              style={{
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+              }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -266,7 +279,8 @@ export default function ColorPicker() {
         <AnimatePresence>
           {toast && (
             <motion.div
-              className="fixed bottom-10 left-1/2 z-50 flex items-center gap-3 rounded-xl bg-[var(--ink)] px-6 py-3 text-[var(--bg)] shadow-2xl"
+              className="fixed left-1/2 z-50 flex items-center gap-3 rounded-xl bg-[var(--ink)] px-4 py-3 text-[var(--bg)] shadow-2xl sm:px-6"
+              style={{ bottom: 'calc(var(--safe-bottom) + 1rem)' }}
               initial={{ opacity: 0, y: 16, x: '-50%' }}
               animate={{ opacity: 1, y: 0, x: '-50%' }}
               exit={{ opacity: 0, y: 16, x: '-50%' }}

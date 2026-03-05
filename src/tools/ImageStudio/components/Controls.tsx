@@ -8,6 +8,7 @@ interface ControlsProps {
   onSettingsChange: (settings: GenerationSettings) => void;
   onGenerate: () => void;
   isGenerating: boolean;
+  showGenerateButton?: boolean;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -15,10 +16,22 @@ export const Controls: React.FC<ControlsProps> = ({
   onSettingsChange,
   onGenerate,
   isGenerating,
+  showGenerateButton = true,
 }) => {
+  const canGenerate = settings.prompt.trim().length > 0;
 
   const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onSettingsChange({ ...settings, prompt: e.target.value });
+  };
+
+  const handlePromptFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth >= 768) return;
+
+    // Keep textarea in viewport when soft keyboard shrinks visible area.
+    window.setTimeout(() => {
+      e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 120);
   };
 
   const handleAspectRatioChange = (ratio: AspectRatio) => {
@@ -50,7 +63,7 @@ export const Controls: React.FC<ControlsProps> = ({
   const countOptions = [1, 2, 3, 4];
 
   return (
-    <div className="flex flex-col h-full bg-neutral-50 border-r border-neutral-200 p-8 space-y-10 overflow-y-auto w-full md:w-80 lg:w-96 flex-shrink-0 transition-colors duration-300">
+    <div className="flex h-auto w-full flex-col space-y-6 overflow-y-visible border-b border-neutral-200 bg-neutral-50 p-4 transition-colors duration-300 sm:space-y-8 sm:p-6 md:h-full md:w-80 md:flex-shrink-0 md:space-y-10 md:overflow-y-auto md:border-b-0 md:border-r md:p-8 lg:w-96">
       {/* Prompt Input */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-neutral-500 tracking-wider">提示词 PROMPT</label>
@@ -58,8 +71,9 @@ export const Controls: React.FC<ControlsProps> = ({
           <textarea
             value={settings.prompt}
             onChange={handlePromptChange}
+            onFocus={handlePromptFocus}
             placeholder="描述你的画面想法，例如：一只穿着宇航服的猫在火星上弹吉他..."
-            className="w-full h-48 px-4 py-4 bg-white border-2 border-neutral-200 rounded-xl text-neutral-900 placeholder-neutral-300 focus:ring-4 focus:ring-[var(--accent)]/10 focus:border-[var(--accent)] resize-none transition-all outline-none text-[15px] leading-relaxed shadow-sm"
+            className="h-36 w-full resize-none rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-[15px] leading-relaxed text-neutral-900 shadow-sm outline-none transition-all placeholder-neutral-300 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 md:h-48"
             style={{ userSelect: 'text' }}
           />
           <div className="absolute bottom-3 right-3 pointer-events-none">
@@ -93,7 +107,7 @@ export const Controls: React.FC<ControlsProps> = ({
       {/* Aspect Ratio */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-neutral-500 tracking-wider">画面比例</label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {aspectRatioOptions.map((opt) => (
             <button
               key={opt.value}
@@ -133,17 +147,23 @@ export const Controls: React.FC<ControlsProps> = ({
         </div>
       </div>
 
-      {/* Generate Button */}
-      <div className="pt-6 mt-auto">
-        <Button
-          onClick={onGenerate}
-          isLoading={isGenerating}
-          className="w-full h-12 text-sm uppercase tracking-wide rounded-xl shadow-sm"
-          disabled={!settings.prompt.trim()}
-        >
-          {isGenerating ? `生成中${settings.numberOfImages > 1 ? ` (${settings.numberOfImages})` : ''}` : '生成图像'}
-        </Button>
-      </div>
+      {showGenerateButton && (
+        <div className="mt-2 pt-4 md:mt-auto md:pt-6">
+          <Button
+            onClick={onGenerate}
+            isLoading={isGenerating}
+            className="h-12 w-full rounded-xl text-sm uppercase tracking-wide shadow-sm"
+            disabled={!canGenerate}
+          >
+            {isGenerating ? `生成中${settings.numberOfImages > 1 ? ` (${settings.numberOfImages})` : ''}` : '生成图像'}
+          </Button>
+          {!canGenerate && (
+            <p className="mt-2 text-xs text-neutral-400">
+              请输入提示词后再生成
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

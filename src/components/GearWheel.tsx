@@ -10,6 +10,7 @@ import {
   type PanInfo,
 } from 'framer-motion';
 import { TOOLS } from '../config/tools';
+import { useViewport } from '../hooks/useViewport';
 
 const WHEEL_ROTATION_KEY = 'gearWheelRotation.v2';
 const DEFAULT_FOCUS_TOOL_ID = 'batch-renamer';
@@ -20,10 +21,6 @@ const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
   uniqueId: `${tool.id}-${i}`
 }));
 
-// ──── Geometry ────
-// The center of the circle is placed far to the LEFT.
-// We only see the right hemisphere edge, bulging into the screen from the left.
-const RADIUS = 600;
 const ITEM_COUNT = REPEATED_TOOLS.length; 
 const ANGLE_STEP = 360 / ITEM_COUNT; // 10°
 
@@ -43,7 +40,7 @@ function getInitialRotation(): number {
 
 // ──── Physics ────
 // Tunable by default (Interface Craft Principle)
-const PHYSICS = {
+const DESKTOP_PHYSICS = {
   // Wheel spring feel (heavier, stiffer, more damped)
   // Reduced damping and mass to make the wheel feel lighter overall
   stiffness: 80,
@@ -65,10 +62,39 @@ const PHYSICS = {
   snapDamping: 35,
 };
 
+const MOBILE_PHYSICS = {
+  stiffness: 75,
+  damping: 28,
+  mass: 1.2,
+  panMultiplier: 0.075,
+  inertiaMultiplier: 0.07,
+  inertiaVelocity: 0.07,
+  inertiaTimeConstant: 260,
+  wheelMultiplier: 0.05,
+  snapStiffness: 105,
+  snapDamping: 32,
+};
+
+const DIST_STOPS = [0, 10, 20, 30, 45];
+
 export default function GearWheel() {
+  const { isMobile, viewportWidth } = useViewport();
   const navigate = useNavigate();
   const wheelSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const physics = isMobile ? MOBILE_PHYSICS : DESKTOP_PHYSICS;
+  const radius = isMobile ? 430 : 600;
+  const focusX = isMobile
+    ? Math.max(38, Math.min(72, viewportWidth * 0.13))
+    : viewportWidth * 0.15;
+  const indicatorSize = isMobile ? 14 : 20;
+  const indicatorGlow = isMobile ? '0 0 12px rgba(37,99,255,0.38)' : '0 0 16px rgba(37,99,255,0.4)';
+  const labelOffset = isMobile ? 36 : 52;
+  const labelFontSizes = isMobile ? [38, 30, 23, 17, 13] : [64, 48, 32, 22, 16];
+  const labelLetterSpacing = isMobile ? '-0.8px' : '-1.5px';
+  const pointerRange = isMobile ? 58 : 50;
+  const labelMaxWidth = isMobile ? '68vw' : 'none';
+  const buttonPadding = isMobile ? '8px 12px' : '6px 4px';
   
   // Restore prior focus in this version; otherwise default to Batch Renamer.
   const initialRotation = getInitialRotation();
@@ -86,29 +112,29 @@ export default function GearWheel() {
   }, []);
   
   const smoothRotation = useSpring(rotation, {
-    stiffness: PHYSICS.stiffness,
-    damping: PHYSICS.damping,
-    mass: PHYSICS.mass,
+    stiffness: physics.stiffness,
+    damping: physics.damping,
+    mass: physics.mass,
   });
 
   // ─── Drag Interaction ───
   const handlePan = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    rotation.set(rotation.get() + info.delta.y * PHYSICS.panMultiplier);
+    rotation.set(rotation.get() + info.delta.y * physics.panMultiplier);
   };
 
   const handlePanEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const v = info.velocity.y;
-    animate(rotation, rotation.get() + v * PHYSICS.inertiaMultiplier, {
+    animate(rotation, rotation.get() + v * physics.inertiaMultiplier, {
       type: 'inertia',
-      velocity: v * PHYSICS.inertiaVelocity,
-      timeConstant: PHYSICS.inertiaTimeConstant,
+      velocity: v * physics.inertiaVelocity,
+      timeConstant: physics.inertiaTimeConstant,
       modifyTarget: (t) => Math.round(t / ANGLE_STEP) * ANGLE_STEP,
     });
   };
 
   // ─── Scroll Interaction ───
   const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
-    rotation.set(rotation.get() - e.deltaY * PHYSICS.wheelMultiplier);
+    rotation.set(rotation.get() - e.deltaY * physics.wheelMultiplier);
 
     if (wheelSnapTimeoutRef.current) {
       clearTimeout(wheelSnapTimeoutRef.current);
@@ -117,8 +143,8 @@ export default function GearWheel() {
       const cur = rotation.get();
       animate(rotation, Math.round(cur / ANGLE_STEP) * ANGLE_STEP, {
         type: 'spring',
-        stiffness: PHYSICS.snapStiffness,
-        damping: PHYSICS.snapDamping,
+        stiffness: physics.snapStiffness,
+        damping: physics.snapDamping,
       });
     }, 120);
   };
@@ -144,8 +170,8 @@ export default function GearWheel() {
       // Animate strictly to the absolute focus position, but faster
       animate(rotation, targetRotation, {
         type: 'spring',
-        stiffness: PHYSICS.snapStiffness * 1.5, // Accelerate the snap
-        damping: PHYSICS.snapDamping * 1.2, // Keep it from oscillating too wildly
+        stiffness: physics.snapStiffness * 1.5, // Accelerate the snap
+        damping: physics.snapDamping * 1.2, // Keep it from oscillating too wildly
         restDelta: 0.01, // Insist on a visually strict full stop
         onComplete: () => {
           rotation.set(targetRotation); // Lock to absolute mathematical center
@@ -170,19 +196,19 @@ export default function GearWheel() {
         overflow: 'hidden',
         touchAction: 'none',
         userSelect: 'none',
-        cursor: 'grab',
+        cursor: isMobile ? 'default' : 'grab',
       }}
       onPan={handlePan}
       onPanEnd={handlePanEnd}
       onWheel={handleWheel}
-      whileTap={{ cursor: 'grabbing' }}
+      whileTap={isMobile ? undefined : { cursor: 'grabbing' }}
     >
 
       {/* ─── The Wheel ─── */}
       <motion.div
         style={{
           position: 'absolute',
-          left: `calc(15vw - ${RADIUS}px)`,
+          left: focusX - radius,
           top: '50%',
           width: 0,
           height: 0,
@@ -195,6 +221,13 @@ export default function GearWheel() {
             tool={tool}
             index={index}
             smoothRotation={smoothRotation}
+            radius={radius}
+            labelOffset={labelOffset}
+            labelFontSizes={labelFontSizes}
+            labelLetterSpacing={labelLetterSpacing}
+            pointerRange={pointerRange}
+            labelMaxWidth={labelMaxWidth}
+            buttonPadding={buttonPadding}
             onSelect={handleSelectTool}
           />
         ))}
@@ -204,16 +237,16 @@ export default function GearWheel() {
       <div
         style={{
           position: 'absolute',
-          left: '15vw', // Right on the circumference edge
+          left: focusX,
           top: '50%',
-          width: 20,
-          height: 20,
-          marginTop: -10,
+          width: indicatorSize,
+          height: indicatorSize,
+          marginTop: -indicatorSize / 2,
           borderRadius: '50%',
           background: 'var(--accent)',
           zIndex: 50,
           pointerEvents: 'none',
-          boxShadow: '0 0 16px rgba(37,99,255,0.4)',
+          boxShadow: indicatorGlow,
         }}
       />
     </motion.div>
@@ -227,11 +260,25 @@ function ArcItem({
   tool,
   index,
   smoothRotation,
+  radius,
+  labelOffset,
+  labelFontSizes,
+  labelLetterSpacing,
+  pointerRange,
+  labelMaxWidth,
+  buttonPadding,
   onSelect,
 }: {
   tool: { id: string; name: string };
   index: number;
   smoothRotation: MotionValue<number>;
+  radius: number;
+  labelOffset: number;
+  labelFontSizes: number[];
+  labelLetterSpacing: string;
+  pointerRange: number;
+  labelMaxWidth: string;
+  buttonPadding: string;
   onSelect: (id: string, index: number) => void;
 }) {
   const slotAngle = index * ANGLE_STEP; // static angle for this slot
@@ -245,16 +292,16 @@ function ArcItem({
   });
 
   // ─── Depth-of-field mapping ───
-  const fontSize = useTransform(dist, [0, 10, 20, 30, 45], [64, 48, 32, 22, 16]);
-  const opacity  = useTransform(dist, [0, 10, 20, 30, 45], [1, 0.7, 0.4, 0.1, 0.0]);
-  const blur     = useTransform(dist, [0, 10, 20, 30, 45], [0, 0, 1.5, 4, 8]);
+  const fontSize = useTransform(dist, DIST_STOPS, labelFontSizes);
+  const opacity  = useTransform(dist, DIST_STOPS, [1, 0.7, 0.4, 0.1, 0.0]);
+  const blur     = useTransform(dist, DIST_STOPS, [0, 0, 1.5, 4, 8]);
   const filter   = useTransform(blur, (b) => `blur(${b}px)`);
   
   // Highlight the active item (distance close to 0) with Klein Blue
   const color    = useTransform(dist, [0, 5], ['#002FA7', '#000000']);
 
   // Relax pointerEvents to allow clicking unfocused items (up to 50 deg away, covers all visible items)
-  const pointerEvents = useTransform(dist, (d) => (d < 50 ? 'auto' : 'none'));
+  const pointerEvents = useTransform(dist, (d) => (d < pointerRange ? 'auto' : 'none'));
 
   return (
     <div
@@ -262,7 +309,7 @@ function ArcItem({
         position: 'absolute',
         left: 0,
         top: 0,
-        transform: `rotate(${slotAngle}deg) translateX(${RADIUS}px)`,
+        transform: `rotate(${slotAngle}deg) translateX(${radius}px)`,
         transformOrigin: '0 0',
       }}
     >
@@ -270,18 +317,23 @@ function ArcItem({
         onClick={() => onSelect(tool.id, index)}
         style={{
           position: 'absolute',
-          left: 52, // Increased from 40 to slightly widen the gap with the blue dot
+          left: labelOffset,
           top: '50%',
-          translateY: '-50%',
+          transform: 'translateY(-50%)',
           background: 'none',
           border: 'none',
           color, // Dynamic color replaces static 'var(--ink)'
           fontWeight: 800,
-          letterSpacing: '-1.5px',
+          letterSpacing: labelLetterSpacing,
           whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: labelMaxWidth,
           textTransform: 'uppercase',
           cursor: 'pointer',
           textAlign: 'left',
+          padding: buttonPadding,
+          borderRadius: 10,
           fontSize,
           opacity,
           filter,

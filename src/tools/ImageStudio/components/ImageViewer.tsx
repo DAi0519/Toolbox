@@ -5,9 +5,10 @@ import { Button } from './Button';
 interface ImageViewerProps {
   session: GenerationSession | null;
   isGenerating: boolean;
+  onNotify?: (message: string) => void;
 }
 
-export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating }) => {
+export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating, onNotify }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const handleDownload = () => {
@@ -24,6 +25,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    onNotify?.('已开始保存当前图片');
   };
 
   const handleDownloadAll = () => {
@@ -41,6 +43,17 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
       link.click();
       document.body.removeChild(link);
     });
+    onNotify?.(`已开始保存 ${session.images.length} 张图片`);
+  };
+
+  const handleCopyPrompt = async () => {
+    if (!session) return;
+    try {
+      await navigator.clipboard.writeText(session.settings.prompt);
+      onNotify?.('提示词已复制');
+    } catch {
+      onNotify?.('复制失败，请手动复制');
+    }
   };
 
   if (isGenerating) {
@@ -78,7 +91,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
     <div className="flex-1 bg-white flex flex-col h-full relative overflow-hidden">
 
       {/* Main Image Stage */}
-      <div className="flex-1 flex flex-col p-6 md:p-8 overflow-hidden bg-neutral-50/30">
+      <div className="flex flex-1 flex-col overflow-hidden bg-neutral-50/30 p-4 sm:p-6 md:p-8">
         <div className="flex-1 flex items-center justify-center min-h-0 relative group">
           <img
             src={currentImage}
@@ -90,13 +103,13 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
             <>
               <button
                 onClick={() => setSelectedIndex((prev) => (prev > 0 ? prev - 1 : session.images.length - 1))}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-90 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-white"
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-neutral-600 opacity-90 shadow-sm backdrop-blur transition-opacity hover:bg-white md:left-4 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button
                 onClick={() => setSelectedIndex((prev) => (prev < session.images.length - 1 ? prev + 1 : 0))}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 backdrop-blur shadow-sm text-neutral-600 opacity-90 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity hover:bg-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-neutral-600 opacity-90 shadow-sm backdrop-blur transition-opacity hover:bg-white md:right-4 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -105,12 +118,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
         </div>
 
         {session.images.length > 1 && (
-          <div className="mt-6 flex justify-center gap-3 shrink-0">
+          <div className="mt-4 flex shrink-0 justify-center gap-2 sm:mt-6 sm:gap-3">
             {session.images.map((img, idx) => (
               <button
                 key={idx}
                 onClick={() => setSelectedIndex(idx)}
-                className={`relative w-16 h-16 rounded overflow-hidden border-2 transition-all duration-200 ${
+                className={`relative h-14 w-14 overflow-hidden rounded border-2 transition-all duration-200 sm:h-16 sm:w-16 ${
                   selectedIndex === idx
                     ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md'
                     : 'border-transparent opacity-60 hover:opacity-100'
@@ -124,9 +137,9 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
       </div>
 
       {/* Info & Actions Bar */}
-      <div className="bg-white border-t border-neutral-100 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shrink-0 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
-        <div className="flex-1 min-w-0 pr-4">
-          <div className="flex items-center gap-2 mb-2">
+      <div className="z-10 flex shrink-0 flex-col gap-3 border-t border-neutral-100 bg-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] sm:gap-5 sm:p-5 md:flex-row md:items-center md:justify-between md:gap-6 md:p-6">
+        <div className="min-w-0 flex-1 md:pr-4">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] uppercase tracking-wider">
               {session.images.length > 1 ? `第 ${selectedIndex + 1}/${session.images.length} 张` : '单张图像'}
             </span>
@@ -142,19 +155,19 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating 
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <Button variant="ghost" onClick={() => navigator.clipboard.writeText(session.settings.prompt)} className="text-xs">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
+          <Button variant="ghost" onClick={handleCopyPrompt} className="w-full text-xs sm:w-auto">
             复制提示词
           </Button>
 
-          <div className="flex items-center gap-2 border-l border-neutral-100 pl-3 ml-1">
-            <Button onClick={handleDownload} variant="secondary" icon={
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center md:ml-1 md:border-l md:border-neutral-100 md:pl-3">
+            <Button onClick={handleDownload} variant="secondary" className="w-full sm:w-auto" icon={
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             }>
               保存
             </Button>
             {session.images.length > 1 && (
-              <Button onClick={handleDownloadAll} variant="ghost" className="text-xs" title="保存全部">
+              <Button onClick={handleDownloadAll} variant="ghost" className="w-full text-xs sm:w-auto" title="保存全部">
                 全部保存
               </Button>
             )}

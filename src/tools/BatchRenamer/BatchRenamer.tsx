@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { FileList } from './components/FileList';
 import { RulePanel } from './components/RulePanel';
@@ -69,6 +69,14 @@ function AppContent() {
   const [autoResolve, setAutoResolve] = useState(true);
   const [strictSequence, setStrictSequence] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => {
+      setToast((current) => (current === message ? null : current));
+    }, 2200);
+  }, []);
 
   const handleFilesDropped = (droppedFiles: File[]) => {
     const newFiles = droppedFiles.map(file => ({
@@ -85,6 +93,7 @@ function AppContent() {
   const handleClearAll = () => {
     setSourceFiles([]);
     // Keep rules for reuse
+    showToast('已清空文件列表');
   };
 
   // Derive processed files
@@ -114,7 +123,7 @@ function AppContent() {
     return autoResolve ? resolveConflicts(processed) : processed;
   }, [sourceFiles, rules, autoResolve, strictSequence]);
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     if (processedFiles.length === 0) return;
     setIsProcessing(true);
 
@@ -132,43 +141,46 @@ function AppContent() {
 
       const blob = await zip.generateAsync({ type: 'blob' });
       await saveZipBlob(blob, 'renamed_files.zip');
+      showToast('导出完成：renamed_files.zip');
     } catch (error) {
       console.error('Failed to zip files', error);
+      showToast('导出失败，请重试');
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [processedFiles, showToast]);
 
   const hasFiles = sourceFiles.length > 0;
   const headerActions = useMemo(
     () => (
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={handleClearAll} disabled={!hasFiles}>
-          <Trash2 size={16} className="mr-1.5" />
-          清空
+        <Button size="sm" variant="ghost" onClick={handleClearAll} disabled={!hasFiles} title="清空文件">
+          <Trash2 size={16} className="sm:mr-1.5" />
+          <span>清空</span>
         </Button>
         <Button
           size="sm"
           onClick={handleDownload}
           disabled={!hasFiles || isProcessing}
           className="bg-black hover:bg-neutral-800 text-white shadow-sm transition-all"
+          title={isProcessing ? '处理中' : '导出文件'}
         >
           {isProcessing ? (
-            <RefreshCw size={16} className="mr-1.5 animate-spin" />
+            <RefreshCw size={16} className="animate-spin sm:mr-1.5" />
           ) : (
-            <Download size={16} className="mr-1.5" />
+            <Download size={16} className="sm:mr-1.5" />
           )}
-          {isProcessing ? '处理中...' : '导出'}
+          <span>{isProcessing ? '处理中...' : '导出'}</span>
         </Button>
       </div>
     ),
-    [hasFiles, isProcessing]
+    [hasFiles, isProcessing, handleDownload]
   );
   useToolHeaderActions(headerActions);
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] selection:bg-black selection:text-white">
-      <div className="max-w-7xl mx-auto p-6 lg:p-12 space-y-8">
+    <div className="min-h-full bg-[var(--bg)] text-[var(--ink)] selection:bg-black selection:text-white">
+      <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-12 lg:space-y-8">
         <main>
           <AnimatePresence mode="wait">
             {!hasFiles ? (
@@ -187,19 +199,19 @@ function AppContent() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4 }}
-                className="grid lg:grid-cols-[1fr,1.5fr] gap-8 items-start"
+                className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr,1.5fr] lg:gap-8"
               >
                 {/* Left Column: Rules (Input/Process) */}
-                <div className="space-y-6 sticky top-8">
+                <div className="space-y-6 lg:sticky lg:top-8">
                   <DropZone onFilesDropped={handleFilesDropped} />
                   
                   <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-neutral-50/50 rounded-2xl p-1"
+                    className="rounded-2xl bg-neutral-50/50 p-1"
                   >
-                    <div className="mb-4 px-2 flex flex-col gap-2">
+                    <div className="mb-4 flex flex-col gap-2 px-2">
                       <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">
                         转换规则
                       </h2>
@@ -241,7 +253,7 @@ function AppContent() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="min-h-[600px]"
+                  className="min-h-[420px] lg:min-h-[600px]"
                 >
                   <FileList files={processedFiles} onRemove={handleRemoveFile} />
                 </motion.div>
@@ -251,6 +263,14 @@ function AppContent() {
         </main>
 
       </div>
+
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+var(--safe-bottom))] z-50 flex justify-center px-4">
+          <div className="rounded-full bg-neutral-900 px-4 py-2 text-xs font-medium text-white shadow-lg">
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

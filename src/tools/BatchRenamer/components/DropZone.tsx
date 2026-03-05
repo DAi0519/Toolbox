@@ -149,7 +149,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         onChange={handleFileInput}
       />
       
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-5">
+      <div className="flex flex-col items-center justify-center space-y-4 px-4 py-10 text-center sm:space-y-5 sm:py-12">
         <motion.div
           animate={{
             scale: isDragging ? 1.1 : 1,
@@ -164,7 +164,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         </motion.div>
         
         <div className="space-y-1">
-          <p className="text-lg font-medium text-neutral-900">
+          <p className="text-base font-medium text-neutral-900 sm:text-lg">
             {isDragging ? "释放以添加" : "拖拽文件或文件夹至此处"}
           </p>
           <p className="text-sm text-neutral-500">
@@ -173,17 +173,17 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-2">
+        <div className="flex w-full flex-col gap-2 pt-2 sm:w-auto sm:flex-row sm:gap-3">
           <button
             onClick={handleSelectFiles}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-neutral-800 active:scale-95 transition-all shadow-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-95"
           >
             <FileText size={16} />
             选择文件
           </button>
           <button
             onClick={handleSelectFolder}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-[var(--ink)] text-sm font-medium rounded-lg border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 active:scale-95 transition-all shadow-sm"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-[var(--ink)] shadow-sm transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-95"
           >
             <Folder size={16} />
             选择文件夹

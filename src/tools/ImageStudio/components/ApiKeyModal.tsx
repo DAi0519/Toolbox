@@ -32,8 +32,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, required = fal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md mx-4 p-8">
-        <div className="mb-6">
+      <div className="mx-4 w-full max-w-md rounded-lg bg-white p-5 shadow-2xl sm:p-8">
+        <div className="mb-5 sm:mb-6">
           <h2 className="text-lg font-semibold text-neutral-900 mb-1">Gemini API Key</h2>
           <p className="text-sm text-neutral-500">
             输入你的 Gemini API Key 以使用图像生成功能。
@@ -69,7 +69,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, required = fal
           </a>
         </div>
 
-        <div className="mt-8 flex items-center justify-end gap-3">
+        <div className="mt-6 flex items-center justify-end gap-3 sm:mt-8">
           {!required && onClose && (
             <Button variant="ghost" onClick={onClose}>取消</Button>
           )}

@@ -9,8 +9,9 @@ function App() {
     <BrowserRouter>
       {/* Global strict layout container */}
       <div style={{
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        minHeight: '100dvh',
+        height: '100dvh',
         position: 'relative',
         overflow: 'hidden',
         background: 'var(--bg)',

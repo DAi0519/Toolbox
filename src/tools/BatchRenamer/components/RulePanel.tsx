@@ -88,7 +88,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
   return (
     <div className="space-y-6">
       {/* Rule Buttons - Static Grid */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <RuleButton icon={FileEdit} label="统一命名" onClick={() => addRule('rename')} />
         <RuleButton icon={Replace} label="查找替换" onClick={() => addRule('replace')} />
         <RuleButton icon={ArrowRightToLine} label="添加前缀" onClick={() => addRule('prefix')} />
@@ -145,7 +145,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
 
                   {rule.type === 'replace' && (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <Input 
                           placeholder="查找内容" 
                           value={rule.find} 
@@ -206,7 +206,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                   )}
 
                   {rule.type === 'case' && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {CASE_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
@@ -225,18 +225,18 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                   )}
 
                   {rule.type === 'numbering' && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <Input 
                         type="number" 
                         label="起始值" 
-                        className="w-20"
+                        className="w-full sm:w-20"
                         value={rule.start} 
                         onChange={e => updateRule(index, { ...rule, start: parseInt(e.target.value) || 0 })} 
                       />
                       <Input 
                         type="number" 
                         label="递增步长" 
-                        className="w-20"
+                        className="w-full sm:w-20"
                         value={rule.step} 
                         onChange={e => updateRule(index, { ...rule, step: parseInt(e.target.value) || 1 })} 
                       />

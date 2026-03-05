@@ -23,10 +23,11 @@ export default function ToolLayout({ title, children }: ToolLayoutProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        minHeight: '100dvh',
+        height: '100dvh',
         background: 'var(--bg)',
-        overflow: 'hidden' // tool content handles scroll if needed
+        overflow: 'hidden',
       }}
     >
       <ToolHeader title={title} rightSlot={rightSlot} />

@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Non-code files and generated artifacts
+/*.png
+output/
+playwright-report/
+test-results/
+blob-report/
+.claude/
+CLAUDE.md
+src/**/*.md
