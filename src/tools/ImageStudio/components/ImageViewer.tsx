@@ -46,16 +46,6 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating,
     onNotify?.(`已开始保存 ${session.images.length} 张图片`);
   };
 
-  const handleCopyPrompt = async () => {
-    if (!session) return;
-    try {
-      await navigator.clipboard.writeText(session.settings.prompt);
-      onNotify?.('提示词已复制');
-    } catch {
-      onNotify?.('复制失败，请手动复制');
-    }
-  };
-
   if (isGenerating) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white p-8">
@@ -137,41 +127,32 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating,
       </div>
 
       {/* Info & Actions Bar */}
-      <div className="z-10 flex shrink-0 flex-col gap-3 border-t border-neutral-100 bg-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] sm:gap-5 sm:p-5 md:flex-row md:items-center md:justify-between md:gap-6 md:p-6">
-        <div className="min-w-0 flex-1 md:pr-4">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] uppercase tracking-wider">
-              {session.images.length > 1 ? `第 ${selectedIndex + 1}/${session.images.length} 张` : '单张图像'}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
-              {session.settings.imageSize}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
-              {session.settings.aspectRatio}
-            </span>
-          </div>
-          <p className="text-neutral-600 text-sm leading-relaxed line-clamp-2 font-medium" title={session.settings.prompt}>
-            {session.settings.prompt}
-          </p>
+      <div className="z-10 flex shrink-0 items-center justify-between border-t border-neutral-100 bg-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] sm:p-5 md:p-6">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] uppercase tracking-wider">
+            {session.images.length > 1 ? `第 ${selectedIndex + 1}/${session.images.length} 张` : '单张图像'}
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
+            {session.settings.imageSize}
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
+            {session.settings.aspectRatio}
+          </span>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
-          <Button variant="ghost" onClick={handleCopyPrompt} className="w-full text-xs sm:w-auto">
-            复制提示词
+        <div className="flex items-center gap-2">
+          <Button onClick={handleDownload} variant="secondary" className="px-3 sm:px-4" icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          }>
+            <span className="hidden sm:inline">保存当前</span>
+            <span className="sm:hidden">保存</span>
           </Button>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center md:ml-1 md:border-l md:border-neutral-100 md:pl-3">
-            <Button onClick={handleDownload} variant="secondary" className="w-full sm:w-auto" icon={
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            }>
-              保存
+          {session.images.length > 1 && (
+            <Button onClick={handleDownloadAll} variant="primary" className="px-3 sm:px-4" title="保存全部">
+              <span className="hidden sm:inline">全部保存</span>
+              <span className="sm:hidden">全存</span>
             </Button>
-            {session.images.length > 1 && (
-              <Button onClick={handleDownloadAll} variant="ghost" className="w-full text-xs sm:w-auto" title="保存全部">
-                全部保存
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

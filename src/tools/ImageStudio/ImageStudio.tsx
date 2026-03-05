@@ -8,6 +8,7 @@ import { generateImages } from './services/geminiService';
 import { AspectRatio, ImageSize } from './types';
 import type { GenerationSession, GenerationSettings } from './types';
 import { useViewport } from '../../hooks/useViewport';
+import { normalizeApiKey, validateApiKey } from './utils/apiKey';
 
 const STORAGE_KEY_API = 'playbox.imageStudio.apiKey';
 const STORAGE_KEY_HISTORY = 'playbox.imageStudio.history';
@@ -136,10 +137,30 @@ function saveHistory(history: GenerationSession[]) {
   return persistHistory(history);
 }
 
+function loadApiKey(): string {
+  if (typeof window === 'undefined') return '';
+
+  const raw = localStorage.getItem(STORAGE_KEY_API) || '';
+  const normalized = normalizeApiKey(raw);
+
+  if (!normalized) return '';
+
+  if (validateApiKey(normalized)) {
+    localStorage.removeItem(STORAGE_KEY_API);
+    return '';
+  }
+
+  if (normalized !== raw) {
+    localStorage.setItem(STORAGE_KEY_API, normalized);
+  }
+
+  return normalized;
+}
+
 const ImageStudio: React.FC = () => {
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(STORAGE_KEY_API) || '');
-  const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(() => !localStorage.getItem(STORAGE_KEY_API));
-  const [apiKeyRequired, setApiKeyRequired] = useState<boolean>(() => !localStorage.getItem(STORAGE_KEY_API));
+  const [apiKey, setApiKey] = useState<string>(loadApiKey);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState<boolean>(() => !loadApiKey());
+  const [apiKeyRequired, setApiKeyRequired] = useState<boolean>(() => !loadApiKey());
 
   const [settings, setSettings] = useState<GenerationSettings>({
     prompt: '',
@@ -163,19 +184,21 @@ const ImageStudio: React.FC = () => {
     }, 2200);
   }, []);
 
-  const canGenerate = settings.prompt.trim().length > 0 && Boolean(apiKey);
+  const apiKeyError = validateApiKey(apiKey);
+  const canGenerate = settings.prompt.trim().length > 0 && !apiKeyError;
   const keyboardInset = typeof window === 'undefined' ? 0 : Math.max(0, window.innerHeight - viewportHeight);
   const isKeyboardOpen = isMobile && keyboardInset > 140;
 
   const handleSaveApiKey = (key: string) => {
-    localStorage.setItem(STORAGE_KEY_API, key);
-    setApiKey(key);
+    const normalized = normalizeApiKey(key);
+    localStorage.setItem(STORAGE_KEY_API, normalized);
+    setApiKey(normalized);
     setApiKeyModalOpen(false);
     setApiKeyRequired(false);
   };
 
   const handleGenerate = useCallback(async () => {
-    if (!settings.prompt.trim() || !apiKey) return;
+    if (!settings.prompt.trim() || apiKeyError) return;
 
     setIsGenerating(true);
     setError(null);
@@ -206,11 +229,17 @@ const ImageStudio: React.FC = () => {
     } catch (err: unknown) {
       console.error('Generation error:', err);
       const message = err instanceof Error ? err.message : '';
+      if (message.includes('API Key 无效')) {
+        localStorage.removeItem(STORAGE_KEY_API);
+        setApiKey('');
+        setApiKeyRequired(true);
+        setApiKeyModalOpen(true);
+      }
       setError(message || 'Failed to generate image. Please try again.');
     } finally {
       setIsGenerating(false);
     }
-  }, [settings, apiKey]);
+  }, [settings, apiKey, apiKeyError]);
 
   const handleClearHistory = () => {
     setHistory([]);
@@ -264,7 +293,8 @@ const ImageStudio: React.FC = () => {
           onSettingsChange={setSettings}
           onGenerate={handleGenerate}
           isGenerating={isGenerating}
-          showGenerateButton={false}
+          showGenerateButton={!isMobile}
+          onNotify={showToast}
         />
 
         {/* Main Preview Area */}
@@ -314,7 +344,7 @@ const ImageStudio: React.FC = () => {
         <div className="mx-auto flex max-w-screen-sm flex-col gap-2 px-4 pb-[calc(0.75rem+var(--safe-bottom))] pt-3">
           {!canGenerate && (
             <p className="text-center text-xs text-neutral-500">
-              {!apiKey ? '请先设置 API Key' : '请输入提示词后再生成'}
+              {apiKeyError || '请输入提示词后再生成'}
             </p>
           )}
           <button

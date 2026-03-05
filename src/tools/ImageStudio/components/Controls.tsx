@@ -9,6 +9,7 @@ interface ControlsProps {
   onGenerate: () => void;
   isGenerating: boolean;
   showGenerateButton?: boolean;
+  onNotify?: (message: string) => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -17,6 +18,7 @@ export const Controls: React.FC<ControlsProps> = ({
   onGenerate,
   isGenerating,
   showGenerateButton = true,
+  onNotify,
 }) => {
   const canGenerate = settings.prompt.trim().length > 0;
 
@@ -66,7 +68,28 @@ export const Controls: React.FC<ControlsProps> = ({
     <div className="flex h-auto w-full flex-col space-y-6 overflow-y-visible border-b border-neutral-200 bg-neutral-50 p-4 transition-colors duration-300 sm:space-y-8 sm:p-6 md:h-full md:w-80 md:flex-shrink-0 md:space-y-10 md:overflow-y-auto md:border-b-0 md:border-r md:p-8 lg:w-96">
       {/* Prompt Input */}
       <div className="space-y-3">
-        <label className="block text-xs font-semibold text-neutral-500 tracking-wider">提示词 PROMPT</label>
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-semibold text-neutral-500 tracking-wider">提示词 PROMPT</label>
+          {settings.prompt.trim() && (
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(settings.prompt);
+                  onNotify?.('提示词已复制');
+                } catch {
+                  onNotify?.('复制失败，请手动复制');
+                }
+                const btn = document.activeElement as HTMLElement;
+                if (btn) btn.blur();
+              }}
+              className="text-[10px] font-medium text-neutral-400 hover:text-[var(--accent)] active:scale-95 transition-all flex items-center gap-1 bg-white border border-neutral-200 px-2 py-1 rounded shadow-sm"
+              title="复制提示词"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              复制
+            </button>
+          )}
+        </div>
         <div className="relative group">
           <textarea
             value={settings.prompt}

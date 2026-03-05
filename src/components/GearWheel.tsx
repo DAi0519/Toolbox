@@ -167,22 +167,22 @@ export default function GearWheel() {
       rotation.set(targetRotation);
       navigate(`/tool/${routeId}`);
     } else {
-      // Animate strictly to the absolute focus position, but faster
+      // Animate strictly to the absolute focus position, but much faster
       animate(rotation, targetRotation, {
         type: 'spring',
-        stiffness: physics.snapStiffness * 1.5, // Accelerate the snap
-        damping: physics.snapDamping * 1.2, // Keep it from oscillating too wildly
+        stiffness: physics.snapStiffness * 3.5, // Significantly accelerate the snap
+        damping: physics.snapDamping * 1.5, // Stop quickly without much oscillation
         restDelta: 0.01, // Insist on a visually strict full stop
         onComplete: () => {
           rotation.set(targetRotation); // Lock to absolute mathematical center
           
-          // Introduce a deliberate pause after it rigidly locks into place
+          // Introduce a minimal pause after it rigidly locks into place
           if (navigateTimeoutRef.current) {
             clearTimeout(navigateTimeoutRef.current);
           }
           navigateTimeoutRef.current = setTimeout(() => {
             navigate(`/tool/${routeId}`);
-          }, 150); // 150ms of perfect stillness before transition
+          }, 150); // 50ms of perfect stillness before transition (down from 150ms)
         }
       });
     }

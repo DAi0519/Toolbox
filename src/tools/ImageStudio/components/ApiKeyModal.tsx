@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
+import { normalizeApiKey, validateApiKey } from '../utils/apiKey';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -15,13 +16,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, required = fal
   if (!isOpen) return null;
 
   const handleSave = () => {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setError('请输入 API Key');
+    const validationError = validateApiKey(value);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setError('');
-    onSave(trimmed);
+    onSave(normalizeApiKey(value));
     setValue('');
   };
 
@@ -44,12 +45,16 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, required = fal
         <div className="space-y-4">
           <div>
             <input
-              type="password"
+              type="text"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="AIza..."
               autoFocus
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
               className="w-full px-4 py-2.5 border border-neutral-200 rounded text-sm text-neutral-900 placeholder-neutral-300 focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900"
               style={{ userSelect: 'text' }}
             />

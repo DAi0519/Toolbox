@@ -3,50 +3,62 @@
 React 19 + TypeScript + Vite + Tailwind CSS + Framer Motion
 
 <directory>
-src/ - 源代码 (3子目录: components, config, tools)
-  components/ - 共享组件 (GearWheel导航轮, ToolLayout工具布局)
-  config/ - 配置文件 (tools.ts工具注册表)
-  tools/ - 各工具模块 (14个工具: ColorPicker, BatchRenamer, ImageStudio等)
-public/ - 静态资源 (DouyinSansBold.otf字体)
+src/ - 源代码
+  components/ - 共享组件与首页齿轮导航 (GearWheel, ToolLayout, ToolHeader 等)
+  config/ - 配置文件 (tools.ts 工具注册表)
+  hooks/ - 设备与视口能力 (useViewport)
+  tools/ - 各工具模块 (14个工具: ColorPicker, BatchRenamer, ImageStudio 等)
+  docs/ - 评审/流程文档目录 (允许为空)
+public/ - 静态资源 (DouyinSansBold.otf 字体)
+output/ - 自动化检查输出 (含 Playwright 移动端截图与 report.json)
 </directory>
 
 <config>
-tools.ts - 工具注册表，定义所有工具的id/name/component，懒加载入口
-GearWheel.tsx - 主导航界面，圆形齿轮轮盘交互
-ToolLayout.tsx - 工具页面通用布局，含返回按钮和标题
-index.css - 全局样式，CSS变量定义(--ink, --bg, --accent)
+tools.ts - 工具注册表，定义所有工具的 id/name/component/fullscreen，懒加载入口
+GearWheel.tsx - 主导航界面，齿轮轮盘交互，支持桌面/移动端分离物理参数
+ToolLayout.tsx - 标准工具页容器，内置 ToolHeader 与 ToolHeaderActionsContext
+useViewport.ts - 读取 visualViewport，提供 isMobile / viewportWidth / viewportHeight
 </config>
 
 ## 架构要点
 
-1. **工具注册表模式**: `src/config/tools.ts` 是唯一真相来源，新增工具只需在此添加条目
-2. **懒加载路由**: 使用 `React.lazy()` 实现代码分割，每个工具独立打包
-3. **GearWheel 导航**: Framer Motion 物理动画轮盘，支持拖拽/滚轮/点击交互
-4. **状态持久化**: 轮盘旋转角度存储于 `sessionStorage`
-5. **全屏工具**: `ToolConfig.fullscreen: true` 跳过 ToolLayout 包裹，工具自管返回按钮（`useNavigate('/')`）
+1. **工具注册表模式**: `src/config/tools.ts` 是唯一真相来源，路由与首页轮盘顺序都由该数组决定。
+2. **懒加载路由**: `React.lazy()` + `Suspense`，每个工具独立分包。
+3. **GearWheel 导航**: 三倍重复工具列表形成无缝旋转视觉，`ANGLE_STEP = 360 / ITEM_COUNT`。
+4. **状态持久化**: 首页轮盘角度写入 `sessionStorage`，key=`gearWheelRotation.v2`。
+5. **标准页头注入**: 非 fullscreen 工具通过 `useToolHeaderActions` 注入右侧操作区，避免重复渲染 header。
+6. **全屏工具自管布局**: `ToolConfig.fullscreen: true` 时跳过 `ToolLayout`，工具自行处理 `ToolHeader`、安全区和滚动容器。
+
+## 新增要求（2026-03-05）
+
+- **移动端基线**: 首页与核心工具在 `320x568 / 375x812 / 390x844 / 768x1024` 下不得出现横向溢出。
+- **GearWheel 一致性**: 保持桌面与移动端独立 physics 常量；滚轮/拖拽结束后必须吸附到 `ANGLE_STEP`。
+- **默认焦点工具**: `DEFAULT_FOCUS_TOOL_ID` 必须指向 `TOOLS` 中存在的 id（当前为 `batch-renamer`）。
+- **fullscreen 准入**: 仅当工具具备完整自管能力（返回主页、safe-area、滚动与移动端可用性）才允许设为 `fullscreen: true`。
+- **文档同步**: 组件成员、接口、数量、关键常量或行为改变后，必须同步更新对应层级 CLAUDE.md。
 
 ## 已实现工具
 
-- **BatchRenamer** (最完整): 拖拽上传、多规则重命名、冲突解决、ZIP导出
-- **ImageStudio** (全屏/AI): Gemini API 图像生成，API Key 管理(localStorage)，History Drawer，全屏布局
-- **ColorPicker** (全屏): 图片色板提取(K-Means 12色)、交互SVG色轮、HEX/RGB/HSL切换、CSS变量/JSON导出
-- 其他11个工具: ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
+- **BatchRenamer**: 拖拽上传、多规则重命名、冲突处理、ZIP 导出
+- **ImageStudio**: 全屏 AI 图像生成，API Key 管理，History Drawer
+- **ColorPicker**: 全屏色板提取，交互色轮，移动端底部面板
+- 其他 11 个工具: ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
 
 ## 文档维护规则
 
 每次修改项目后，必须检查并按需更新受影响的 CLAUDE.md：
 
-- 根目录 `CLAUDE.md` — 架构变动、新依赖、全局规则
-- `src/config/CLAUDE.md` — `tools.ts` 接口或条目变化
-- `src/tools/CLAUDE.md` — 新增/删除工具目录
-- `src/tools/<Tool>/CLAUDE.md` — 该工具内部结构变化（新增文件、接口、行为）
-- `src/components/CLAUDE.md` — 共享组件变化
+- 根目录 `CLAUDE.md` - 架构变动、新依赖、全局规则
+- `src/config/CLAUDE.md` - `tools.ts` 接口或条目变化
+- `src/tools/CLAUDE.md` - 新增/删除工具目录
+- `src/tools/<Tool>/CLAUDE.md` - 该工具内部结构变化（新增文件、接口、行为）
+- `src/components/CLAUDE.md` - 共享组件变化
 
 判断标准：文档中描述的内容（成员清单、接口、行为、数量）与实际代码不符时，必须更新。
 
 ## 技术细节
 
-- 字体: 自定义 DouyinSansBold (抖音黑体)，全项目统一使用。Tailwind 中用 `font-sans`（已映射），**禁止使用 `font-serif` / `font-mono`**
-- 主色: Klein Blue #002FA7
-- 物理动画: 弹簧刚度80, 阻尼30, 质量1.5
-- 依赖: `@google/genai` (ImageStudio 使用 Gemini API 图像生成)
+- 字体: 全项目使用 DouyinSansBold，Tailwind 中统一走 `font-sans`
+- 主色: Klein Blue `#002FA7`
+- 首页轮盘默认桌面弹簧参数: `stiffness:80 / damping:30 / mass:1.5`
+- 关键依赖: `@google/genai`、`framer-motion`、`jszip`、`file-saver`
