@@ -202,7 +202,7 @@ export default function ColorPicker() {
         {/* ── Main layout ── */}
         <div
           className={`
-            flex h-full w-full flex-col items-center justify-start gap-6 px-4 py-6 sm:px-6 md:flex-row md:items-center md:justify-center md:gap-12 md:py-10 lg:gap-24
+            flex h-full w-full flex-col items-center justify-center gap-6 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-center md:gap-12 md:py-10 lg:gap-24
             ${hasPalette ? 'md:px-12' : ''}
             transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]
           `}

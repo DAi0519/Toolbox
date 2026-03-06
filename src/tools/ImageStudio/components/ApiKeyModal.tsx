@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BackHomeButton from '../../../components/BackHomeButton';
 import { Button } from './Button';
 import { normalizeApiKey, validateApiKey } from '../utils/apiKey';
 
@@ -34,6 +35,18 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, required = fal
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="mx-4 w-full max-w-md rounded-lg bg-white p-5 shadow-2xl sm:p-8">
+        {required && (
+          <div className="mb-2 flex items-center">
+            <BackHomeButton
+              compact
+              className="-ml-2 text-neutral-500 hover:text-neutral-900"
+            />
+            <span className="ml-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">
+              Return Home
+            </span>
+          </div>
+        )}
+
         <div className="mb-5 sm:mb-6">
           <h2 className="text-lg font-semibold text-neutral-900 mb-1">Gemini API Key</h2>
           <p className="text-sm text-neutral-500">
