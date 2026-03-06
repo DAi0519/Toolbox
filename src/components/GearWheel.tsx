@@ -1,4 +1,4 @@
-import { useEffect, useRef, type WheelEvent } from 'react';
+import { memo, useCallback, useEffect, useRef, type WheelEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   motion,
@@ -6,6 +6,7 @@ import {
   useSpring,
   animate,
   useTransform,
+  useMotionTemplate,
   MotionValue,
   type PanInfo,
 } from 'framer-motion';
@@ -14,6 +15,14 @@ import { useViewport } from '../hooks/useViewport';
 
 const WHEEL_ROTATION_KEY = 'gearWheelRotation.v2';
 const DEFAULT_FOCUS_TOOL_ID = 'batch-renamer';
+const WHEEL_SNAP_DELAY_MS = 120;
+const NAVIGATE_DELAY_MS = 150;
+const ROTATION_LOCK_EPSILON = 0.5;
+const INSTANT_SNAP_VELOCITY_THRESHOLD = 0.02;
+const MOBILE_VISIBLE_DISTANCE_CUTOFF = 42;
+const DESKTOP_VISIBLE_DISTANCE_CUTOFF = 47;
+const MOBILE_POINTER_RANGE = 52;
+const DESKTOP_POINTER_RANGE = 50;
 
 // Triple-repeat for seamless infinite rotation feel visually
 const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
@@ -24,23 +33,60 @@ const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
 const ITEM_COUNT = REPEATED_TOOLS.length; 
 const ANGLE_STEP = 360 / ITEM_COUNT; // 10°
 
+interface GearPhysics {
+  stiffness: number;
+  damping: number;
+  mass: number;
+  panMultiplier: number;
+  inertiaMultiplier: number;
+  inertiaVelocity: number;
+  inertiaTimeConstant: number;
+  wheelMultiplier: number;
+  snapStiffness: number;
+  snapDamping: number;
+  magneticThreshold: number;
+  magneticStrength: number;
+}
+
 function getDefaultRotation(): number {
   const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
   if (defaultIndex < 0) return 0;
   return -(defaultIndex * ANGLE_STEP);
 }
 
-function getInitialRotation(): number {
-  const storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
+function readStoredRotation(): number | null {
+  if (typeof window === 'undefined') return null;
+
+  let storedRotation: string | null = null;
+  try {
+    storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
+  } catch {
+    return null;
+  }
+
   if (!storedRotation) return getDefaultRotation();
 
   const parsed = Number(storedRotation);
-  return Number.isFinite(parsed) ? parsed : getDefaultRotation();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getInitialRotation(): number {
+  return readStoredRotation() ?? getDefaultRotation();
+}
+
+function persistRotation(value: number) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    sessionStorage.setItem(WHEEL_ROTATION_KEY, value.toString());
+  } catch {
+    // Ignore persistence failures and keep runtime interaction responsive.
+  }
 }
 
 // ──── Physics ────
 // Tunable by default (Interface Craft Principle)
-const DESKTOP_PHYSICS = {
+const DESKTOP_PHYSICS: GearPhysics = {
   // Wheel spring feel (heavier, stiffer, more damped)
   // Reduced damping and mass to make the wheel feel lighter overall
   stiffness: 80,
@@ -60,28 +106,95 @@ const DESKTOP_PHYSICS = {
   wheelMultiplier: 0.08, // Previously 0.035
   snapStiffness: 120,
   snapDamping: 35,
+  magneticThreshold: 0,
+  magneticStrength: 0,
 };
 
-const MOBILE_PHYSICS = {
-  stiffness: 75,
-  damping: 28,
-  mass: 1.2,
-  panMultiplier: 0.075,
-  inertiaMultiplier: 0.07,
-  inertiaVelocity: 0.07,
-  inertiaTimeConstant: 260,
-  wheelMultiplier: 0.05,
-  snapStiffness: 105,
-  snapDamping: 32,
+const MOBILE_PHYSICS: GearPhysics = {
+  stiffness: 88,
+  damping: 34,
+  mass: 1.05,
+  panMultiplier: 0.068,
+  inertiaMultiplier: 0.038,
+  inertiaVelocity: 0.048,
+  inertiaTimeConstant: 210,
+  wheelMultiplier: 0.04,
+  snapStiffness: 150,
+  snapDamping: 38,
+  magneticThreshold: ANGLE_STEP * 0.34,
+  magneticStrength: 0.44,
 };
 
+// Module-level constants so ArcItem memo comparisons always see stable references.
+// Previously these were recreated as inline arrays on every GearWheel render,
+// which made React.memo treat them as changed and re-render all 42 items — even
+// when isMobile hadn't changed (e.g. visualViewport scroll from soft keyboard).
+const MOBILE_FONT_SIZES = [38, 30, 23, 17, 13];
+const DESKTOP_FONT_SIZES = [64, 48, 32, 22, 16];
 const DIST_STOPS = [0, 10, 20, 30, 45];
+const MOBILE_OPACITY_STOPS = [1, 0.7, 0.4, 0.1, 0];
+const DESKTOP_OPACITY_STOPS = [1, 0.82, 0.34, 0.05, 0];
+const ACTIVE_COLOR_DISTANCE = [0, 5];
+const ACTIVE_COLOR_STOPS = ['#002FA7', '#000000'];
+const MOBILE_LABEL_BASE_SIZE = MOBILE_FONT_SIZES[0];
+const MOBILE_SCALE_STOPS = MOBILE_FONT_SIZES.map((size) => size / MOBILE_LABEL_BASE_SIZE);
+const DESKTOP_BLUR_STOPS = [0, 0, 0.7, 2.6, 6.25];
+
+function normalizeAngle(value: number): number {
+  let normalized = value % 360;
+  if (normalized > 180) normalized -= 360;
+  if (normalized <= -180) normalized += 360;
+  return normalized;
+}
+
+function getNearestSnapRotation(value: number): number {
+  return Math.round(value / ANGLE_STEP) * ANGLE_STEP;
+}
+
+function getFocusDistance(rotationValue: number, slotAngle: number): number {
+  return Math.abs(normalizeAngle(rotationValue + slotAngle));
+}
+
+function getSnapDelta(value: number): number {
+  return getNearestSnapRotation(value) - value;
+}
+
+function getSelectionTargetRotation(currentRotation: number, slotAngle: number): number {
+  return currentRotation + normalizeAngle(-slotAngle - currentRotation);
+}
+
+function applyMagneticDelta(
+  rotation: MotionValue<number>,
+  delta: number,
+  threshold: number,
+  strength: number,
+) {
+  const rawNext = rotation.get() + delta;
+  const snapDelta = getSnapDelta(rawNext);
+  const distance = Math.abs(snapDelta);
+
+  if (distance >= threshold) {
+    rotation.set(rawNext);
+    return;
+  }
+
+  const pullProgress = 1 - distance / threshold;
+  const magneticPull = snapDelta * pullProgress * pullProgress * strength;
+  rotation.set(rawNext + magneticPull);
+}
 
 export default function GearWheel() {
   const { isMobile, viewportWidth } = useViewport();
   const navigate = useNavigate();
   const wheelSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rotationAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
+  const mobilePanFrameRef = useRef<number | null>(null);
+  const mobilePanDeltaRef = useRef(0);
+  const initialRotationRef = useRef<number | null>(null);
+  const interactionEpochRef = useRef(0);
+  const panEpochRef = useRef<number | null>(null);
+  const wheelEpochRef = useRef<number | null>(null);
   const physics = isMobile ? MOBILE_PHYSICS : DESKTOP_PHYSICS;
   const radius = isMobile ? 430 : 600;
   const focusX = isMobile
@@ -90,26 +203,113 @@ export default function GearWheel() {
   const indicatorSize = isMobile ? 14 : 20;
   const indicatorGlow = isMobile ? '0 0 12px rgba(37,99,255,0.38)' : '0 0 16px rgba(37,99,255,0.4)';
   const labelOffset = isMobile ? 36 : 52;
-  const labelFontSizes = isMobile ? [38, 30, 23, 17, 13] : [64, 48, 32, 22, 16];
+  const labelFontSizes = isMobile ? MOBILE_FONT_SIZES : DESKTOP_FONT_SIZES;
   const labelLetterSpacing = isMobile ? '-0.8px' : '-1.5px';
-  const pointerRange = isMobile ? 58 : 50;
   const labelMaxWidth = isMobile ? '68vw' : 'none';
   const buttonPadding = isMobile ? '8px 12px' : '6px 4px';
   
   // Restore prior focus in this version; otherwise default to Batch Renamer.
-  const initialRotation = getInitialRotation();
-  const rotation = useMotionValue(initialRotation);
+  if (initialRotationRef.current === null) {
+    initialRotationRef.current = getInitialRotation();
+  }
+  const rotation = useMotionValue(initialRotationRef.current);
+
+  const stopWheelSnapTimeout = useCallback(() => {
+    if (wheelSnapTimeoutRef.current) {
+      clearTimeout(wheelSnapTimeoutRef.current);
+      wheelSnapTimeoutRef.current = null;
+    }
+  }, []);
+
+  const stopNavigateTimeout = useCallback(() => {
+    if (navigateTimeoutRef.current) {
+      clearTimeout(navigateTimeoutRef.current);
+      navigateTimeoutRef.current = null;
+    }
+  }, []);
+
+  const stopRotationAnimation = useCallback(() => {
+    rotationAnimationRef.current?.stop();
+    rotationAnimationRef.current = null;
+  }, []);
+
+  const stopPendingMobilePanFrame = useCallback(() => {
+    if (mobilePanFrameRef.current !== null) {
+      window.cancelAnimationFrame(mobilePanFrameRef.current);
+      mobilePanFrameRef.current = null;
+    }
+    mobilePanDeltaRef.current = 0;
+  }, []);
+
+  const applyRotationDelta = useCallback((delta: number) => {
+    if (isMobile) {
+      applyMagneticDelta(rotation, delta, physics.magneticThreshold, physics.magneticStrength);
+      return;
+    }
+
+    rotation.set(rotation.get() + delta);
+  }, [
+    rotation,
+    physics.magneticThreshold,
+    physics.magneticStrength,
+    isMobile,
+  ]);
+
+  const flushPendingMobilePanDelta = useCallback(() => {
+    if (mobilePanFrameRef.current === null && mobilePanDeltaRef.current === 0) return;
+
+    if (mobilePanFrameRef.current !== null) {
+      window.cancelAnimationFrame(mobilePanFrameRef.current);
+      mobilePanFrameRef.current = null;
+    }
+
+    const delta = mobilePanDeltaRef.current;
+    mobilePanDeltaRef.current = 0;
+
+    if (delta !== 0) {
+      applyRotationDelta(delta);
+    }
+  }, [applyRotationDelta]);
+
+  const scheduleMobilePanDelta = useCallback((delta: number) => {
+    mobilePanDeltaRef.current += delta;
+    if (mobilePanFrameRef.current !== null) return;
+
+    mobilePanFrameRef.current = window.requestAnimationFrame(() => {
+      mobilePanFrameRef.current = null;
+      const nextDelta = mobilePanDeltaRef.current;
+      mobilePanDeltaRef.current = 0;
+
+      if (nextDelta !== 0) {
+        applyRotationDelta(nextDelta);
+      }
+    });
+  }, [applyRotationDelta]);
+
+  const resetInteraction = useCallback(() => {
+    interactionEpochRef.current += 1;
+    panEpochRef.current = null;
+    wheelEpochRef.current = null;
+    stopPendingMobilePanFrame();
+    stopWheelSnapTimeout();
+    stopNavigateTimeout();
+    stopRotationAnimation();
+    return interactionEpochRef.current;
+  }, [stopNavigateTimeout, stopPendingMobilePanFrame, stopRotationAnimation, stopWheelSnapTimeout]);
 
   useEffect(() => {
-    return () => {
-      if (wheelSnapTimeoutRef.current) {
-        clearTimeout(wheelSnapTimeoutRef.current);
-      }
-      if (navigateTimeoutRef.current) {
-        clearTimeout(navigateTimeoutRef.current);
-      }
+    const handlePageHide = () => {
+      persistRotation(rotation.get());
     };
-  }, []);
+
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      persistRotation(rotation.get());
+      resetInteraction();
+    };
+  }, [resetInteraction, rotation]);
   
   const smoothRotation = useSpring(rotation, {
     stiffness: physics.stiffness,
@@ -117,76 +317,154 @@ export default function GearWheel() {
     mass: physics.mass,
   });
 
-  // ─── Drag Interaction ───
-  const handlePan = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    rotation.set(rotation.get() + info.delta.y * physics.panMultiplier);
-  };
-
-  const handlePanEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const v = info.velocity.y;
-    animate(rotation, rotation.get() + v * physics.inertiaMultiplier, {
-      type: 'inertia',
-      velocity: v * physics.inertiaVelocity,
-      timeConstant: physics.inertiaTimeConstant,
-      modifyTarget: (t) => Math.round(t / ANGLE_STEP) * ANGLE_STEP,
+  const animateToSnap = useCallback((
+    targetRotation: number,
+    stiffness: number,
+    damping: number,
+    epoch: number,
+  ) => {
+    stopRotationAnimation();
+    rotationAnimationRef.current = animate(rotation, targetRotation, {
+      type: 'spring',
+      stiffness,
+      damping,
+      onComplete: () => {
+        if (interactionEpochRef.current !== epoch) return;
+        rotation.set(targetRotation);
+        persistRotation(targetRotation);
+        rotationAnimationRef.current = null;
+      },
     });
-  };
+  }, [rotation, stopRotationAnimation]);
+
+  // ─── Drag Interaction ───
+  const handlePanStart = useCallback(() => {
+    panEpochRef.current = resetInteraction();
+  }, [resetInteraction]);
+
+  const handlePan = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const delta = info.delta.y * physics.panMultiplier;
+    if (isMobile) {
+      scheduleMobilePanDelta(delta);
+      return;
+    }
+
+    applyRotationDelta(delta);
+  }, [
+    physics.panMultiplier,
+    isMobile,
+    applyRotationDelta,
+    scheduleMobilePanDelta,
+  ]);
+
+  const handlePanEnd = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const epoch = panEpochRef.current ?? resetInteraction();
+    panEpochRef.current = null;
+    flushPendingMobilePanDelta();
+    const v = info.velocity.y;
+    const velocity = v * physics.inertiaVelocity;
+
+    if (Math.abs(velocity) < INSTANT_SNAP_VELOCITY_THRESHOLD) {
+      animateToSnap(
+        getNearestSnapRotation(rotation.get()),
+        physics.snapStiffness,
+        physics.snapDamping,
+        epoch,
+      );
+      return;
+    }
+
+    rotationAnimationRef.current = animate(rotation, rotation.get() + v * physics.inertiaMultiplier, {
+      type: 'inertia',
+      velocity,
+      timeConstant: physics.inertiaTimeConstant,
+      modifyTarget: getNearestSnapRotation,
+      onComplete: () => {
+        if (interactionEpochRef.current !== epoch) return;
+        const snapped = getNearestSnapRotation(rotation.get());
+        rotation.set(snapped);
+        persistRotation(snapped);
+        rotationAnimationRef.current = null;
+      },
+    });
+  }, [
+    animateToSnap,
+    physics.inertiaMultiplier,
+    physics.inertiaTimeConstant,
+    physics.inertiaVelocity,
+    physics.snapDamping,
+    physics.snapStiffness,
+    flushPendingMobilePanDelta,
+    resetInteraction,
+    rotation,
+  ]);
 
   // ─── Scroll Interaction ───
-  const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
-    rotation.set(rotation.get() - e.deltaY * physics.wheelMultiplier);
+  const handleWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    stopWheelSnapTimeout();
 
-    if (wheelSnapTimeoutRef.current) {
-      clearTimeout(wheelSnapTimeoutRef.current);
-    }
+    const epoch = wheelEpochRef.current ?? resetInteraction();
+    wheelEpochRef.current = epoch;
+
+    const delta = -e.deltaY * physics.wheelMultiplier;
+    applyRotationDelta(delta);
+
     wheelSnapTimeoutRef.current = setTimeout(() => {
-      const cur = rotation.get();
-      animate(rotation, Math.round(cur / ANGLE_STEP) * ANGLE_STEP, {
-        type: 'spring',
-        stiffness: physics.snapStiffness,
-        damping: physics.snapDamping,
-      });
-    }, 120);
-  };
+      wheelEpochRef.current = null;
+      if (interactionEpochRef.current !== epoch) return;
+      const snapped = getNearestSnapRotation(rotation.get());
+      animateToSnap(snapped, physics.snapStiffness, physics.snapDamping, epoch);
+      wheelSnapTimeoutRef.current = null;
+    }, WHEEL_SNAP_DELAY_MS);
+  }, [
+    physics.wheelMultiplier,
+    physics.snapStiffness,
+    physics.snapDamping,
+    applyRotationDelta,
+    animateToSnap,
+    resetInteraction,
+    stopWheelSnapTimeout,
+  ]);
 
   // ─── Routing Action ───
-  const handleSelectTool = (routeId: string, index: number) => {
+  const handleSelectTool = useCallback((routeId: string, index: number) => {
+    const epoch = resetInteraction();
+
     const slotAngle = index * ANGLE_STEP;
     const currentRot = rotation.get();
-    
-    // Calculate the shortest rotation difference to bring the item to focus (0 degrees dist)
-    let diff = (-slotAngle - currentRot) % 360;
-    if (diff > 180) diff -= 360;
-    if (diff < -180) diff += 360;
+    const targetRotation = getSelectionTargetRotation(currentRot, slotAngle);
+    const diff = targetRotation - currentRot;
 
-    const targetRotation = currentRot + diff;
-    sessionStorage.setItem(WHEEL_ROTATION_KEY, targetRotation.toString());
-    
-    if (Math.abs(diff) < 0.5) {
+    if (Math.abs(diff) < ROTATION_LOCK_EPSILON) {
       // If it's essentially already at the exact focus point, jump immediately
       rotation.set(targetRotation);
+      persistRotation(targetRotation);
       navigate(`/tool/${routeId}`);
     } else {
       // Animate strictly to the absolute focus position, but much faster
-      animate(rotation, targetRotation, {
+      stopRotationAnimation();
+      rotationAnimationRef.current = animate(rotation, targetRotation, {
         type: 'spring',
         stiffness: physics.snapStiffness * 3.5, // Significantly accelerate the snap
         damping: physics.snapDamping * 1.5, // Stop quickly without much oscillation
         restDelta: 0.01, // Insist on a visually strict full stop
         onComplete: () => {
+          if (interactionEpochRef.current !== epoch) return;
           rotation.set(targetRotation); // Lock to absolute mathematical center
-          
+          rotationAnimationRef.current = null;
+          persistRotation(targetRotation);
+
           // Introduce a minimal pause after it rigidly locks into place
-          if (navigateTimeoutRef.current) {
-            clearTimeout(navigateTimeoutRef.current);
-          }
           navigateTimeoutRef.current = setTimeout(() => {
+            if (interactionEpochRef.current !== epoch) return;
             navigate(`/tool/${routeId}`);
-          }, 150); // 50ms of perfect stillness before transition (down from 150ms)
+            navigateTimeoutRef.current = null;
+          }, NAVIGATE_DELAY_MS);
         }
       });
     }
-  };
+  }, [resetInteraction, rotation, navigate, physics.snapStiffness, physics.snapDamping, stopRotationAnimation]);
 
   return (
     <motion.div
@@ -199,6 +477,7 @@ export default function GearWheel() {
         cursor: isMobile ? 'default' : 'grab',
       }}
       onPan={handlePan}
+      onPanStart={handlePanStart}
       onPanEnd={handlePanEnd}
       onWheel={handleWheel}
       whileTap={isMobile ? undefined : { cursor: 'grabbing' }}
@@ -213,23 +492,39 @@ export default function GearWheel() {
           width: 0,
           height: 0,
           rotate: smoothRotation,
+          willChange: 'transform',
+          transformStyle: 'preserve-3d',
         }}
       >
         {REPEATED_TOOLS.map((tool, index) => (
-          <ArcItem
-            key={tool.uniqueId}
-            tool={tool}
-            index={index}
-            smoothRotation={smoothRotation}
-            radius={radius}
-            labelOffset={labelOffset}
-            labelFontSizes={labelFontSizes}
-            labelLetterSpacing={labelLetterSpacing}
-            pointerRange={pointerRange}
-            labelMaxWidth={labelMaxWidth}
-            buttonPadding={buttonPadding}
-            onSelect={handleSelectTool}
-          />
+          isMobile ? (
+            <MobileArcItem
+              key={tool.uniqueId}
+              tool={tool}
+              index={index}
+              smoothRotation={smoothRotation}
+              radius={radius}
+              labelOffset={labelOffset}
+              labelLetterSpacing={labelLetterSpacing}
+              labelMaxWidth={labelMaxWidth}
+              buttonPadding={buttonPadding}
+              onSelect={handleSelectTool}
+            />
+          ) : (
+            <DesktopArcItem
+              key={tool.uniqueId}
+              tool={tool}
+              index={index}
+              smoothRotation={smoothRotation}
+              radius={radius}
+              labelOffset={labelOffset}
+              labelFontSizes={labelFontSizes}
+              labelLetterSpacing={labelLetterSpacing}
+              labelMaxWidth={labelMaxWidth}
+              buttonPadding={buttonPadding}
+              onSelect={handleSelectTool}
+            />
+          )
         ))}
       </motion.div>
 
@@ -256,7 +551,98 @@ export default function GearWheel() {
 // ──────────────────────────────────────
 // ArcItem — a single label on the wheel
 // ──────────────────────────────────────
-function ArcItem({
+const MobileArcItem = memo(function MobileArcItem({
+  tool,
+  index,
+  smoothRotation,
+  radius,
+  labelOffset,
+  labelLetterSpacing,
+  labelMaxWidth,
+  buttonPadding,
+  onSelect,
+}: {
+  tool: { id: string; name: string };
+  index: number;
+  smoothRotation: MotionValue<number>;
+  radius: number;
+  labelOffset: number;
+  labelLetterSpacing: string;
+  labelMaxWidth: string;
+  buttonPadding: string;
+  onSelect: (id: string, index: number) => void;
+}) {
+  const slotAngle = index * ANGLE_STEP; // static angle for this slot
+
+  // How far is this item from the focal center (the left-most point = 0°)?
+  const dist = useTransform(smoothRotation, (r) => getFocusDistance(r, slotAngle));
+  const opacity = useTransform(dist, DIST_STOPS, MOBILE_OPACITY_STOPS);
+  const mobileScale = useTransform(dist, DIST_STOPS, MOBILE_SCALE_STOPS);
+  const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
+  const pointerEvents = useTransform(dist, (d) => (d < MOBILE_POINTER_RANGE ? 'auto' : 'none'));
+  const visibility = useTransform(
+    dist,
+    (d) => (d <= MOBILE_VISIBLE_DISTANCE_CUTOFF ? 'visible' : 'hidden'),
+  );
+
+  return (
+    <motion.div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        transform: `rotate(${slotAngle}deg) translateX(${radius}px) translateZ(0)`,
+        transformOrigin: '0 0',
+        visibility,
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: labelOffset,
+          top: '50%',
+          transform: 'translateY(-50%) translateZ(0)',
+          transformOrigin: 'left center',
+        }}
+      >
+        <motion.button
+          onClick={() => onSelect(tool.id, index)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color,
+            fontWeight: 800,
+            letterSpacing: labelLetterSpacing,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: labelMaxWidth,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: buttonPadding,
+            borderRadius: 10,
+            fontSize: MOBILE_LABEL_BASE_SIZE,
+            opacity,
+            pointerEvents,
+            scale: mobileScale,
+            willChange: 'transform, opacity, color',
+            transformOrigin: 'left center',
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
+            textRendering: 'optimizeSpeed',
+          }}
+        >
+          {tool.name}
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+});
+
+const DesktopArcItem = memo(function DesktopArcItem({
   tool,
   index,
   smoothRotation,
@@ -264,7 +650,6 @@ function ArcItem({
   labelOffset,
   labelFontSizes,
   labelLetterSpacing,
-  pointerRange,
   labelMaxWidth,
   buttonPadding,
   onSelect,
@@ -276,74 +661,76 @@ function ArcItem({
   labelOffset: number;
   labelFontSizes: number[];
   labelLetterSpacing: string;
-  pointerRange: number;
   labelMaxWidth: string;
   buttonPadding: string;
   onSelect: (id: string, index: number) => void;
 }) {
-  const slotAngle = index * ANGLE_STEP; // static angle for this slot
-
-  // How far is this item from the focal center (the left-most point = 0°)?
-  const dist = useTransform(smoothRotation, (r) => {
-    let a = (r + slotAngle) % 360;
-    if (a > 180) a -= 360;
-    if (a < -180) a += 360;
-    return Math.abs(a);
-  });
-
-  // ─── Depth-of-field mapping ───
+  const slotAngle = index * ANGLE_STEP;
+  const dist = useTransform(smoothRotation, (r) => getFocusDistance(r, slotAngle));
   const fontSize = useTransform(dist, DIST_STOPS, labelFontSizes);
-  const opacity  = useTransform(dist, DIST_STOPS, [1, 0.7, 0.4, 0.1, 0.0]);
-  const blur     = useTransform(dist, DIST_STOPS, [0, 0, 1.5, 4, 8]);
-  const filter   = useTransform(blur, (b) => `blur(${b}px)`);
-  
-  // Highlight the active item (distance close to 0) with Klein Blue
-  const color    = useTransform(dist, [0, 5], ['#002FA7', '#000000']);
-
-  // Relax pointerEvents to allow clicking unfocused items (up to 50 deg away, covers all visible items)
-  const pointerEvents = useTransform(dist, (d) => (d < pointerRange ? 'auto' : 'none'));
+  const opacity = useTransform(dist, DIST_STOPS, DESKTOP_OPACITY_STOPS);
+  const blurAmount = useTransform(dist, DIST_STOPS, DESKTOP_BLUR_STOPS);
+  const blurFilter = useMotionTemplate`blur(${blurAmount}px)`;
+  const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
+  const pointerEvents = useTransform(dist, (d) => (d < DESKTOP_POINTER_RANGE ? 'auto' : 'none'));
+  const visibility = useTransform(
+    dist,
+    (d) => (d <= DESKTOP_VISIBLE_DISTANCE_CUTOFF ? 'visible' : 'hidden'),
+  );
 
   return (
-    <div
+    <motion.div
       style={{
         position: 'absolute',
         left: 0,
         top: 0,
-        transform: `rotate(${slotAngle}deg) translateX(${radius}px)`,
+        transform: `rotate(${slotAngle}deg) translateX(${radius}px) translateZ(0)`,
         transformOrigin: '0 0',
+        visibility,
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
       }}
     >
-      <motion.button
-        onClick={() => onSelect(tool.id, index)}
+      <div
         style={{
           position: 'absolute',
           left: labelOffset,
           top: '50%',
-          transform: 'translateY(-50%)',
-          background: 'none',
-          border: 'none',
-          color, // Dynamic color replaces static 'var(--ink)'
-          fontWeight: 800,
-          letterSpacing: labelLetterSpacing,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: labelMaxWidth,
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          textAlign: 'left',
-          padding: buttonPadding,
-          borderRadius: 10,
-          fontSize,
-          opacity,
-          filter,
-          pointerEvents,
-          transformOrigin: 'left center', // Grow outward from the left edge
+          transform: 'translateY(-50%) translateZ(0)',
+          transformOrigin: 'left center',
         }}
-        transition={{ duration: 0.12 }}
       >
-        {tool.name}
-      </motion.button>
-    </div>
+        <motion.button
+          onClick={() => onSelect(tool.id, index)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color,
+            fontWeight: 800,
+            letterSpacing: labelLetterSpacing,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: labelMaxWidth,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            textAlign: 'left',
+            padding: buttonPadding,
+            borderRadius: 10,
+            fontSize,
+            opacity,
+            filter: blurFilter,
+            pointerEvents,
+            willChange: 'transform, opacity, filter, color',
+            transformOrigin: 'left center',
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
+            textRendering: 'geometricPrecision',
+          }}
+        >
+          {tool.name}
+        </motion.button>
+      </div>
+    </motion.div>
   );
-}
+});

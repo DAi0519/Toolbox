@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -21,21 +21,38 @@ function readViewport(): ViewportState {
 
 export function useViewport() {
   const [state, setState] = useState<ViewportState>(() => readViewport());
+  const frameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const handleResize = () => setState(readViewport());
-    handleResize();
+    const commitViewport = () => {
+      frameRef.current = null;
+      const next = readViewport();
+      setState((prev) => (
+        prev.viewportWidth === next.viewportWidth &&
+        prev.viewportHeight === next.viewportHeight
+      ) ? prev : next);
+    };
 
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    window.visualViewport?.addEventListener('resize', handleResize);
-    window.visualViewport?.addEventListener('scroll', handleResize);
+    const scheduleViewportRead = () => {
+      if (frameRef.current !== null) return;
+      frameRef.current = window.requestAnimationFrame(commitViewport);
+    };
+
+    scheduleViewportRead();
+
+    window.addEventListener('resize', scheduleViewportRead);
+    window.addEventListener('orientationchange', scheduleViewportRead);
+    window.visualViewport?.addEventListener('resize', scheduleViewportRead);
+    window.visualViewport?.addEventListener('scroll', scheduleViewportRead);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-      window.visualViewport?.removeEventListener('resize', handleResize);
-      window.visualViewport?.removeEventListener('scroll', handleResize);
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+      window.removeEventListener('resize', scheduleViewportRead);
+      window.removeEventListener('orientationchange', scheduleViewportRead);
+      window.visualViewport?.removeEventListener('resize', scheduleViewportRead);
+      window.visualViewport?.removeEventListener('scroll', scheduleViewportRead);
     };
   }, []);
 
