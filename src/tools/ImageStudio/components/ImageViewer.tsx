@@ -1,50 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { GenerationSession } from '../types';
-import { Button } from './Button';
 
 interface ImageViewerProps {
   session: GenerationSession | null;
+  selectedIndex: number;
+  onSelectIndex: (index: number) => void;
   isGenerating: boolean;
-  onNotify?: (message: string) => void;
+  onDownload: () => void;
 }
 
-export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating, onNotify }) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export const ImageViewer: React.FC<ImageViewerProps> = ({ session, selectedIndex, onSelectIndex, isGenerating, onDownload }) => {
 
-  const handleDownload = () => {
-    if (!session) return;
-    const url = session.images[selectedIndex];
-    const sanitizedPrompt = session.settings.prompt
-      .replace(/[^a-z0-9]/gi, '_')
-      .substring(0, 30);
-
-    const filename = `image_studio_${sanitizedPrompt}_${selectedIndex + 1}_${Date.now()}.png`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    onNotify?.('已开始保存当前图片');
-  };
-
-  const handleDownloadAll = () => {
-    if (!session) return;
-    session.images.forEach((url, idx) => {
-      const sanitizedPrompt = session.settings.prompt
-        .replace(/[^a-z0-9]/gi, '_')
-        .substring(0, 30);
-
-      const filename = `image_studio_${sanitizedPrompt}_${idx + 1}_${Date.now()}.png`;
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
-    onNotify?.(`已开始保存 ${session.images.length} 张图片`);
-  };
 
   if (isGenerating) {
     return (
@@ -86,19 +52,21 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating,
           <img
             src={currentImage}
             alt={`${session.settings.prompt} - View ${selectedIndex + 1}`}
-            className="max-w-full max-h-full object-contain shadow-sm rounded-lg transition-all duration-300"
+            onDoubleClick={onDownload}
+            className="max-w-full max-h-full object-contain shadow-sm rounded-lg transition-all duration-300 md:cursor-pointer"
+            title="双击保存图片"
           />
 
           {session.images.length > 1 && (
             <>
               <button
-                onClick={() => setSelectedIndex((prev) => (prev > 0 ? prev - 1 : session.images.length - 1))}
+                onClick={() => onSelectIndex(selectedIndex > 0 ? selectedIndex - 1 : session.images.length - 1)}
                 className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-neutral-600 opacity-90 shadow-sm backdrop-blur transition-opacity hover:bg-white md:left-4 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <button
-                onClick={() => setSelectedIndex((prev) => (prev < session.images.length - 1 ? prev + 1 : 0))}
+                onClick={() => onSelectIndex(selectedIndex < session.images.length - 1 ? selectedIndex + 1 : 0)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-neutral-600 opacity-90 shadow-sm backdrop-blur transition-opacity hover:bg-white md:right-4 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -112,7 +80,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating,
             {session.images.map((img, idx) => (
               <button
                 key={idx}
-                onClick={() => setSelectedIndex(idx)}
+                onClick={() => onSelectIndex(idx)}
                 className={`relative h-14 w-14 overflow-hidden rounded border-2 transition-all duration-200 sm:h-16 sm:w-16 ${
                   selectedIndex === idx
                     ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md'
@@ -124,36 +92,6 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ session, isGenerating,
             ))}
           </div>
         )}
-      </div>
-
-      {/* Info & Actions Bar */}
-      <div className="z-10 flex shrink-0 items-center justify-between border-t border-neutral-100 bg-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] sm:p-5 md:p-6">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--accent)]/10 text-[var(--accent)] uppercase tracking-wider">
-            {session.images.length > 1 ? `第 ${selectedIndex + 1}/${session.images.length} 张` : '单张图像'}
-          </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
-            {session.settings.imageSize}
-          </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-neutral-100 text-neutral-600 uppercase tracking-wider">
-            {session.settings.aspectRatio}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button onClick={handleDownload} variant="secondary" className="px-3 sm:px-4" icon={
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          }>
-            <span className="hidden sm:inline">保存当前</span>
-            <span className="sm:hidden">保存</span>
-          </Button>
-          {session.images.length > 1 && (
-            <Button onClick={handleDownloadAll} variant="primary" className="px-3 sm:px-4" title="保存全部">
-              <span className="hidden sm:inline">全部保存</span>
-              <span className="sm:hidden">全存</span>
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   );

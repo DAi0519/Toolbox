@@ -170,6 +170,7 @@ const ImageStudio: React.FC = () => {
   });
 
   const [currentSession, setCurrentSession] = useState<GenerationSession | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<GenerationSession[]>(loadHistory);
@@ -214,6 +215,7 @@ const ImageStudio: React.FC = () => {
       };
 
       setCurrentSession(newSession);
+      setSelectedIndex(0);
       showToast(`已生成 ${images.length} 张图像`);
       setHistory((prev) => {
         const sessionForHistory = prepareSessionForStorage(newSession);
@@ -246,6 +248,41 @@ const ImageStudio: React.FC = () => {
     saveHistory([]);
     showToast('历史记录已清空');
   };
+
+  const handleDownload = useCallback(() => {
+    if (!currentSession) return;
+    const url = currentSession.images[selectedIndex];
+    const sanitizedPrompt = currentSession.settings.prompt
+      .replace(/[^a-z0-9]/gi, '_')
+      .substring(0, 30);
+
+    const filename = `image_studio_${sanitizedPrompt}_${selectedIndex + 1}_${Date.now()}.png`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('已开始保存当前图片');
+  }, [currentSession, selectedIndex, showToast]);
+
+  const handleDownloadAll = useCallback(() => {
+    if (!currentSession) return;
+    currentSession.images.forEach((url, idx) => {
+      const sanitizedPrompt = currentSession.settings.prompt
+        .replace(/[^a-z0-9]/gi, '_')
+        .substring(0, 30);
+
+      const filename = `image_studio_${sanitizedPrompt}_${idx + 1}_${Date.now()}.png`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+    showToast(`已开始保存 ${currentSession.images.length} 张图片`);
+  }, [currentSession, showToast]);
 
   return (
     <div className="flex h-full min-h-full w-full flex-col overflow-x-hidden bg-white pb-[var(--safe-bottom)] text-neutral-900 selection:bg-blue-100 selection:text-blue-900 md:h-[100dvh] md:min-h-[100dvh] md:overflow-hidden">
@@ -295,6 +332,10 @@ const ImageStudio: React.FC = () => {
           isGenerating={isGenerating}
           showGenerateButton={!isMobile}
           onNotify={showToast}
+          session={currentSession}
+          selectedIndex={selectedIndex}
+          onDownload={handleDownload}
+          onDownloadAll={handleDownloadAll}
         />
 
         {/* Main Preview Area */}
@@ -321,14 +362,19 @@ const ImageStudio: React.FC = () => {
           <ImageViewer
             key={currentSession?.id ?? 'empty-session'}
             session={currentSession}
+            selectedIndex={selectedIndex}
+            onSelectIndex={setSelectedIndex}
             isGenerating={isGenerating}
-            onNotify={showToast}
+            onDownload={handleDownload}
           />
 
           {/* History Drawer (overlaid on image area) */}
           <HistoryDrawer
             history={history}
-            onSelect={(session) => setCurrentSession(session)}
+            onSelect={(session) => {
+              setCurrentSession(session);
+              setSelectedIndex(0);
+            }}
             onClose={() => setHistoryOpen(false)}
             isOpen={historyOpen}
             onClear={handleClearHistory}

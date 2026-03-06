@@ -1,6 +1,6 @@
 import React from 'react';
 import { AspectRatio, ImageSize } from '../types';
-import type { GenerationSettings } from '../types';
+import type { GenerationSettings, GenerationSession } from '../types';
 import { Button } from './Button';
 
 interface ControlsProps {
@@ -10,6 +10,10 @@ interface ControlsProps {
   isGenerating: boolean;
   showGenerateButton?: boolean;
   onNotify?: (message: string) => void;
+  session: GenerationSession | null;
+  selectedIndex: number;
+  onDownload: () => void;
+  onDownloadAll: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -19,6 +23,10 @@ export const Controls: React.FC<ControlsProps> = ({
   isGenerating,
   showGenerateButton = true,
   onNotify,
+  session,
+  selectedIndex,
+  onDownload,
+  onDownloadAll,
 }) => {
   const canGenerate = settings.prompt.trim().length > 0;
 
@@ -65,7 +73,8 @@ export const Controls: React.FC<ControlsProps> = ({
   const countOptions = [1, 2, 3, 4];
 
   return (
-    <div className="flex h-auto w-full flex-col space-y-6 overflow-y-visible border-b border-neutral-200 bg-neutral-50 p-4 transition-colors duration-300 sm:space-y-8 sm:p-6 md:h-full md:w-80 md:flex-shrink-0 md:space-y-10 md:overflow-y-auto md:border-b-0 md:border-r md:p-8 lg:w-96">
+    <div className="flex h-auto w-full flex-col overflow-y-visible border-b border-neutral-200 bg-neutral-50 transition-colors duration-300 md:h-full md:w-80 md:flex-shrink-0 md:border-b-0 md:border-r lg:w-96 relative">
+      <div className="flex-1 overflow-y-auto w-full p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 md:space-y-10 pb-32">
       {/* Prompt Input */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -96,7 +105,7 @@ export const Controls: React.FC<ControlsProps> = ({
             onChange={handlePromptChange}
             onFocus={handlePromptFocus}
             placeholder="描述你的画面想法，例如：一只穿着宇航服的猫在火星上弹吉他..."
-            className="h-36 w-full resize-none rounded-xl border-2 border-neutral-200 bg-white px-4 py-4 text-[15px] leading-relaxed text-neutral-900 shadow-sm outline-none transition-all placeholder-neutral-300 focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent)]/10 md:h-48"
+            className="h-36 w-full resize-none rounded-2xl bg-white px-4 py-4 text-[15px] leading-relaxed text-neutral-900 shadow-sm ring-1 ring-neutral-200 outline-none transition-all placeholder-neutral-400 focus:ring-2 focus:ring-[var(--accent)] md:h-48"
             style={{ userSelect: 'text' }}
           />
           <div className="absolute bottom-3 right-3 pointer-events-none">
@@ -110,15 +119,15 @@ export const Controls: React.FC<ControlsProps> = ({
       {/* Batch Size */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-neutral-500 tracking-wider">生成数量</label>
-        <div className="flex bg-white border-2 border-neutral-200 rounded-lg overflow-hidden">
+        <div className="flex bg-black/5 p-1 rounded-[14px]">
           {countOptions.map((num) => (
             <button
               key={num}
               onClick={() => handleCountChange(num)}
-              className={`flex-1 py-2 text-sm font-medium transition-colors duration-200 border-r border-neutral-100 last:border-0
+              className={`flex-1 py-2 text-sm font-medium rounded-[10px] transition-all duration-200
                 ${settings.numberOfImages === num
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-white text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50'
+                  ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-black/5'
+                  : 'text-neutral-500 hover:text-neutral-900'
                 }`}
             >
               {num}
@@ -135,14 +144,14 @@ export const Controls: React.FC<ControlsProps> = ({
             <button
               key={opt.value}
               onClick={() => handleAspectRatioChange(opt.value)}
-              className={`p-3 rounded-xl text-center transition-all duration-200 border-2
+              className={`p-3 rounded-[14px] text-center transition-all duration-200 border border-transparent
                 ${settings.aspectRatio === opt.value
-                  ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-md'
-                  : 'bg-white border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-[var(--ink)]'
+                  ? 'bg-white text-neutral-900 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.1)] ring-1 ring-black/5'
+                  : 'bg-black/[0.03] text-neutral-500 hover:bg-black/[0.06] hover:text-[var(--ink)]'
                 }`}
             >
-              <div className="text-sm font-medium">{opt.label}</div>
-              <div className={`text-[10px] mt-1 ${settings.aspectRatio === opt.value ? 'text-white/80' : 'text-neutral-400'}`}>
+              <div className="text-sm font-semibold">{opt.label}</div>
+              <div className={`text-[10px] mt-1 font-medium ${settings.aspectRatio === opt.value ? 'text-neutral-500' : 'text-neutral-400'}`}>
                 {opt.desc}
               </div>
             </button>
@@ -153,14 +162,14 @@ export const Controls: React.FC<ControlsProps> = ({
       {/* Resolution */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-neutral-500 tracking-wider">图像质量</label>
-        <div className="flex bg-neutral-200/50 p-1 rounded-lg">
+        <div className="flex bg-black/5 p-1 rounded-[14px]">
           {resolutionOptions.map((opt) => (
             <button
               key={opt.value}
               onClick={() => handleResolutionChange(opt.value)}
-              className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all duration-200
+              className={`flex-1 py-2 text-xs font-semibold rounded-[10px] transition-all duration-200
                 ${settings.imageSize === opt.value
-                  ? 'bg-[var(--accent)] text-white shadow-sm'
+                  ? 'bg-white text-neutral-900 shadow-sm ring-1 ring-black/5'
                   : 'text-neutral-500 hover:text-neutral-700'
                 }`}
             >
@@ -181,10 +190,56 @@ export const Controls: React.FC<ControlsProps> = ({
             {isGenerating ? `生成中${settings.numberOfImages > 1 ? ` (${settings.numberOfImages})` : ''}` : '生成图像'}
           </Button>
           {!canGenerate && (
-            <p className="mt-2 text-xs text-neutral-400">
+            <p className="mt-2 text-center text-xs text-neutral-400">
               请输入提示词后再生成
             </p>
           )}
+        </div>
+      )}
+      </div>
+
+      {/* Output Meta Card (Sticky at bottom) */}
+      {session && !isGenerating && (
+        <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-black/5 p-4 shrink-0 shadow-[0_-8px_30px_rgba(0,0,0,0.04)] z-10">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-neutral-500 tracking-wider">当前结果</span>
+              <div className="flex items-center gap-1.5">
+                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-black/5 text-neutral-500 uppercase tracking-wider">
+                  {session.settings.imageSize}
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-black/5 text-neutral-500 uppercase tracking-wider">
+                  {session.settings.aspectRatio}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-black/5 rounded-[14px] p-1">
+               <div className="px-3">
+                 <span className="text-[11px] font-semibold text-neutral-500 tracking-wider">
+                  {session.images.length > 1 ? `第 ${selectedIndex + 1} / ${session.images.length} 张` : '单张图像'}
+                </span>
+               </div>
+               <div className="flex items-center gap-1">
+                 <button 
+                  onClick={onDownload} 
+                  className="px-3 py-1.5 bg-white text-neutral-900 hover:text-[var(--accent)] text-xs font-semibold rounded-[10px] shadow-sm ring-1 ring-black/5 transition-all"
+                  title="保存当前"
+                 >
+                   保存
+                 </button>
+                 {session.images.length > 1 && (
+                    <button 
+                      onClick={onDownloadAll} 
+                      className="px-3 py-1.5 bg-[var(--accent)] text-white hover:opacity-90 text-xs font-semibold rounded-[10px] shadow-sm ring-1 ring-black/5 transition-all"
+                      title="保存全部"
+                    >
+                      全存
+                    </button>
+                 )}
+               </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
