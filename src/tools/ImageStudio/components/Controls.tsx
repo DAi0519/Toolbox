@@ -180,7 +180,7 @@ export const Controls: React.FC<ControlsProps> = ({
       </div>
 
       {showGenerateButton && (
-        <div className="mt-2 pt-4 md:mt-auto md:pt-6">
+        <div className="mt-2 pt-4 md:mt-auto md:pt-6 hidden md:block">
           <Button
             onClick={onGenerate}
             isLoading={isGenerating}

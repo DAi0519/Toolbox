@@ -26,8 +26,22 @@ const SPRINGS = {
   toast:   { type: 'spring' as const, stiffness: 350, damping: 22 },
 };
 
+const MOBILE_LAYOUT = {
+  sideGutterMin: 16,
+  sideGutterMax: 28,
+  wheelPaddingMin: 6,
+  wheelPaddingMax: 14,
+  wheelMin: 140,
+  topReserve: 84,
+  sheetGap: 18,
+  sheetRatio: 0.38,
+  shortSheetMin: 180,
+  defaultSheetMin: 220,
+  sheetMax: 360,
+};
+
 export default function ColorPicker() {
-  const { isMobile } = useViewport();
+  const { isMobile, viewportWidth, viewportHeight } = useViewport();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -121,8 +135,39 @@ export default function ColorPicker() {
 
   const hasPalette = colors.length > 0;
   const hasImageState = imageSrc !== null || colors.length > 0;
+  const mobileSideGutterPx = Math.max(
+    MOBILE_LAYOUT.sideGutterMin,
+    Math.min(viewportWidth * 0.06, MOBILE_LAYOUT.sideGutterMax),
+  );
+  const mobileWheelPaddingPx = Math.max(
+    MOBILE_LAYOUT.wheelPaddingMin,
+    Math.min(
+      viewportWidth * (hasPalette ? 0.03 : 0.022),
+      MOBILE_LAYOUT.wheelPaddingMax,
+    ),
+  );
+  const mobileSheetMinPx = viewportHeight < 720
+    ? MOBILE_LAYOUT.shortSheetMin
+    : MOBILE_LAYOUT.defaultSheetMin;
+  const mobilePaletteMaxHeightPx = hasPalette
+    ? Math.min(
+        Math.max(viewportHeight * MOBILE_LAYOUT.sheetRatio, mobileSheetMinPx),
+        MOBILE_LAYOUT.sheetMax,
+      )
+    : 0;
+  const mobileWheelVerticalBudgetPx = hasPalette
+    ? viewportHeight - MOBILE_LAYOUT.topReserve - mobilePaletteMaxHeightPx - MOBILE_LAYOUT.sheetGap
+    : viewportHeight - MOBILE_LAYOUT.topReserve - mobileSideGutterPx * 2;
+  const mobileWheelSize = `${Math.round(Math.max(
+    MOBILE_LAYOUT.wheelMin,
+    Math.min(
+      viewportWidth - mobileSideGutterPx * 2,
+      mobileWheelVerticalBudgetPx,
+    ),
+  ))}px`;
+  const mobilePaletteMaxHeight = `${Math.round(mobilePaletteMaxHeightPx)}px`;
   const wheelSize = isMobile
-    ? 'clamp(220px, min(60vh, 88vw), 520px)'
+    ? mobileWheelSize
     : 'clamp(320px, min(70vh, 70vw), 720px)';
 
   return (
@@ -207,7 +252,10 @@ export default function ColorPicker() {
             transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]
           `}
           style={{
-            paddingBottom: hasPalette && isMobile ? 'min(48vh, 360px)' : undefined,
+            paddingTop: isMobile && hasPalette ? Math.round(mobileSideGutterPx * 0.5) : undefined,
+            paddingBottom: hasPalette && isMobile
+              ? `calc(${mobilePaletteMaxHeight} + ${MOBILE_LAYOUT.sheetGap}px)`
+              : undefined,
           }}
         >
           {/* Wheel container */}
@@ -216,6 +264,7 @@ export default function ColorPicker() {
             style={{
               width: wheelSize,
               height: wheelSize,
+              padding: isMobile ? `${Math.round(mobileWheelPaddingPx)}px` : undefined,
             }}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -256,10 +305,11 @@ export default function ColorPicker() {
         <AnimatePresence>
           {hasPalette && (
             <motion.div
-              className="absolute bottom-0 left-0 right-0 z-20 max-h-[48vh] overflow-y-auto border-t border-black/5 bg-white/95 px-4 pb-[calc(var(--safe-bottom)+1.25rem)] pt-5 backdrop-blur-xl md:hidden"
+              className="absolute bottom-0 left-0 right-0 z-20 overflow-y-auto border-t border-black/5 bg-white/95 px-4 pb-[calc(var(--safe-bottom)+1.25rem)] pt-5 backdrop-blur-xl md:hidden"
               style={{
                 borderTopLeftRadius: 16,
                 borderTopRightRadius: 16,
+                maxHeight: mobilePaletteMaxHeight,
               }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
