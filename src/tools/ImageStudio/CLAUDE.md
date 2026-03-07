@@ -28,6 +28,7 @@ utils/apiKey.ts: API Key 规范化与校验（去除 Bearer/引号/空白并校�
 - API 返回 `API_KEY_INVALID` 时需展示可读错误，并清除本地无效 key 后重新打开 API Key 弹窗。
 - API Key 输入允许直接粘贴，保存前会自动移除 `Bearer `、引号和空白字符后再校验。
 - `required` 模式的 API Key 弹窗也必须提供可见的退出路径（返回主页），不能把用户锁死在工具内。
+- API Key 弹窗在移动端必须沿用桌面端同一张卡片的视觉语言；仅允许宽度自适应，不要单独降级成另一套更松散或更弱的移动端样式。
 - 生成链路使用 `models.generateContent` + `gemini-3-pro-image-preview`，并强制 `responseModalities: [IMAGE]`。
 - `imageConfig.imageSize` 直接透传 `1K/2K/4K`；`4K` 为原生请求，不走本地上采样。
 - 多图生成采用串行请求（非 `Promise.all` 并发），单张失败会按可重试错误做指数退避重试，降低批量失败概率。
