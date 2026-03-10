@@ -85,5 +85,12 @@ export const TOOLS: ToolConfig[] = [
     description: 'AI 图像生成工具',
     component: lazy(() => import('../tools/ImageStudio/ImageStudio')),
     fullscreen: true,
+  },
+  {
+    id: 'music-pad',
+    name: 'Music Pad',
+    description: '12x12 sequencer with image-to-pattern import and MP3 export',
+    component: lazy(() => import('../tools/MusicPad/MusicPad')),
+    fullscreen: true,
   }
 ];
