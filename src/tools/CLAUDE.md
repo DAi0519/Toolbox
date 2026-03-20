@@ -3,6 +3,7 @@
 
 成员清单
 ColorPicker/: 色彩拾取工具（全屏，图片色板提取 + 交互色轮 + 复制导出，见子文档）
+GradientStudio/: 渐变工坊（全屏，Canvas 2D 噪声渐变生成器，见子文档）
 ImageTools/ImageTools.tsx: 图像处理工具
 Typography/Typography.tsx: 字体排版工具
 CodeFormat/CodeFormat.tsx: 代码格式化工具

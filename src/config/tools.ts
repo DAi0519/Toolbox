@@ -19,6 +19,13 @@ export const TOOLS: ToolConfig[] = [
     fullscreen: true,
   },
   {
+    id: 'gradient-studio',
+    name: '渐变工坊',
+    description: '噪声渐变图生成器',
+    component: lazy(() => import('../tools/GradientStudio/GradientStudio')),
+    fullscreen: true,
+  },
+  {
     id: 'image-tools',
     name: '图像处理',
     component: lazy(() => import('../tools/ImageTools/ImageTools'))

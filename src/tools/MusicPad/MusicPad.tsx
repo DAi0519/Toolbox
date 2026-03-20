@@ -277,7 +277,11 @@ export default function MusicPad() {
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-center bg-[#e5e5e5] p-4 font-sans text-black"
+      className="flex h-full overflow-y-auto bg-[#e5e5e5] px-3 py-3 font-sans text-black sm:px-4 sm:py-4"
+      style={{
+        paddingTop: 'max(12px, env(safe-area-inset-top))',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+      }}
       onPointerLeave={() => {
         drawModeRef.current = null;
       }}
@@ -290,9 +294,9 @@ export default function MusicPad() {
         onChange={handleImageUpload}
       />
 
-      <div className="w-full max-w-[520px] border-4 border-black bg-[#f2f2f2]">
-        <div className="flex items-end justify-between border-b-4 border-black bg-[#f2f2f2] p-6">
-          <h1 className="text-5xl font-black uppercase leading-[0.85] tracking-tighter md:text-6xl">
+      <div className="mx-auto my-auto w-full max-w-[520px] border-4 border-black bg-[#f2f2f2]">
+        <div className="flex items-end justify-between border-b-4 border-black bg-[#f2f2f2] p-4 sm:p-6">
+          <h1 className="text-[2.5rem] font-black uppercase leading-[0.82] tracking-tighter sm:text-5xl md:text-6xl">
             Sonic
             <br />
             Canvas
@@ -316,7 +320,7 @@ export default function MusicPad() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center border-b-4 border-black bg-white p-4 md:p-6">
+        <div className="flex items-center justify-center border-b-4 border-black bg-white p-3 sm:p-4 md:p-6">
           <div className="relative aspect-square w-full max-w-[420px] border-2 border-black bg-[#f2f2f2] p-1">
             <div
               className={`grid h-full w-full select-none gap-px touch-none ${GRID_COL_CLASSES[gridSize]}`}
@@ -342,98 +346,95 @@ export default function MusicPad() {
           </div>
         </div>
 
-        <div className="grid h-28 grid-cols-[auto_1fr] bg-[#f2f2f2]">
+        <div className="grid grid-cols-[76px_1fr] grid-rows-[76px_auto] bg-[#f2f2f2] min-[360px]:grid-cols-[88px_1fr] sm:h-28 sm:grid-cols-[auto_1fr] sm:grid-rows-[1fr_1fr]">
           <button
             type="button"
             aria-label={isPlaying ? 'Stop playback' : 'Start playback'}
             onClick={() => setIsPlaying((value) => !value)}
-            className={`flex aspect-square h-full items-center justify-center border-r-4 border-black transition-all ${
+            className={`flex h-full items-center justify-center border-r-4 border-b-4 border-black transition-all sm:row-span-2 sm:border-b-0 sm:aspect-square ${
               isPlaying ? 'bg-white text-black hover:bg-gray-100' : 'text-white'
             }`}
             style={{ backgroundColor: isPlaying ? '#ffffff' : ACCENT }}
           >
             {isPlaying ? (
-              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="h-12 w-12 sm:h-16 sm:w-16" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" />
               </svg>
             ) : (
-              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="h-12 w-12 sm:h-16 sm:w-16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5v14l11-7z" />
               </svg>
             )}
           </button>
 
-          <div className="flex flex-col">
-            <div className="flex flex-1 flex-col justify-center border-b-4 border-black p-3">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-tight">Tempo Control</span>
-                <span className="text-xs font-black">{tempo} BPM</span>
-              </div>
-              <input
-                type="range"
-                min="60"
-                max="240"
-                value={tempo}
-                onChange={(event) => setTempo(Number(event.target.value))}
-                className="h-2 w-full appearance-none border border-black bg-gray-300 outline-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-black"
-              />
+          <div className="flex flex-col justify-center border-b-4 border-black p-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-tight">Tempo Control</span>
+              <span className="text-xs font-black">{tempo} BPM</span>
             </div>
+            <input
+              type="range"
+              min="60"
+              max="240"
+              value={tempo}
+              onChange={(event) => setTempo(Number(event.target.value))}
+              className="h-3 w-full appearance-none border border-black bg-gray-300 outline-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-black"
+            />
+          </div>
 
-            <div className="flex flex-1">
-              <button
-                type="button"
-                onClick={handleClear}
-                className="group flex flex-1 items-center justify-between border-r-4 border-black p-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white"
-              >
-                <span className="tracking-tight">Reset</span>
-                <span className="transition-transform group-hover:rotate-180">↺</span>
-              </button>
+          <div className="col-span-2 grid grid-cols-2 sm:col-span-1 sm:grid-cols-5">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="group flex min-h-[52px] items-center justify-between border-r-4 border-b-4 border-black px-3 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white sm:min-h-0 sm:border-b-0"
+            >
+              <span className="tracking-tight">Reset</span>
+              <span className="transition-transform group-hover:rotate-180">↺</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={cycleInstrument}
-                className="group flex flex-1 items-center justify-between border-r-4 border-black p-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white"
-              >
-                <span className="tracking-tight">{instrument}</span>
-                <span className="transition-transform group-hover:scale-110">♪</span>
-              </button>
+            <button
+              type="button"
+              onClick={cycleInstrument}
+              className="group flex min-h-[52px] items-center justify-between border-b-4 border-black px-3 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white sm:min-h-0 sm:border-r-4 sm:border-b-0"
+            >
+              <span className="tracking-tight">{instrument}</span>
+              <span className="transition-transform group-hover:scale-110">♪</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={cycleGridSize}
-                className="group flex flex-1 items-center justify-between border-r-4 border-black p-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white"
-              >
-                <span className="tracking-tight">
-                  {gridSize}x{gridSize}
-                </span>
-                <span className="transition-transform group-hover:scale-110">⊞</span>
-              </button>
+            <button
+              type="button"
+              onClick={cycleGridSize}
+              className="group flex min-h-[52px] items-center justify-between border-r-4 border-b-4 border-black px-3 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white sm:min-h-0 sm:border-b-0"
+            >
+              <span className="tracking-tight">
+                {gridSize}x{gridSize}
+              </span>
+              <span className="transition-transform group-hover:scale-110">⊞</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={isImporting}
-                className="group flex flex-1 items-center justify-between border-r-4 border-black p-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="tracking-tight">{isImporting ? '...' : 'Image'}</span>
-                <span className="transition-transform group-hover:scale-110">⌂</span>
-              </button>
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isImporting}
+              className="group flex min-h-[52px] items-center justify-between border-b-4 border-black px-3 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:border-r-4 sm:border-b-0"
+            >
+              <span className="tracking-tight">{isImporting ? '...' : 'Image'}</span>
+              <span className="transition-transform group-hover:scale-110">⌂</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={isExporting || activeCells.size === 0}
-                className="group flex flex-1 items-center justify-between p-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="tracking-tight">{isExporting ? '...' : 'MP3'}</span>
-                <span className="transition-transform group-hover:translate-y-1">↓</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={isExporting || activeCells.size === 0}
+              className="group col-span-2 flex min-h-[52px] items-center justify-between px-3 py-2 text-left text-[10px] font-black uppercase transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:min-h-0"
+            >
+              <span className="tracking-tight">{isExporting ? '...' : 'MP3'}</span>
+              <span className="transition-transform group-hover:translate-y-1">↓</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="mt-8 font-mono text-[10px] uppercase tracking-widest text-gray-500">#REVIVAL2026</div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 > L2 | 父级: /CLAUDE.md
 
 成员清单
-tools.ts: 工具注册表，`ToolConfig` 接口（id/name/description/component/fullscreen）与 `TOOLS` 数组（当前14项）
+tools.ts: 工具注册表，`ToolConfig` 接口（id/name/description/component/fullscreen）与 `TOOLS` 数组（当前16项）
 
 关键约束（新增 2026-03-05）
 - `TOOLS` 是路由与首页轮盘顺序的单一来源；增删改工具只能在此处完成。
