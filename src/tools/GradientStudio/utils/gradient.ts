@@ -94,12 +94,11 @@ const FRAG = /* glsl */`
   uniform float u_time;
 
   float rand(vec2 n) {
-    return fract(sin(dot(n + vec2(u_seed * 0.17, u_seed * 0.11), vec2(12.9898, 4.1414))) * 43758.5453);
+    return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
   }
 
   vec2 hash2(vec2 p) {
-    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-    return fract(sin(p + u_seed * 0.01) * 43758.5453);
+    return vec2(rand(p), rand(p + vec2(12.9898, 78.233)));
   }
 
   float valueNoise(vec2 st) {
@@ -148,7 +147,7 @@ const FRAG = /* glsl */`
       for (int x = -1; x <= 1; x++) {
         vec2 neighbor = vec2(float(x), float(y));
         vec2 point = hash2(i_st + neighbor);
-        point = 0.5 + 0.5 * sin(vec2(u_seed * 0.013) + 6.2831 * point);
+        point = 0.5 + 0.5 * sin(u_time + 6.2831 * point);
         vec2 diff = neighbor + point - f_st;
         m_dist = min(m_dist, length(diff));
       }
@@ -157,16 +156,16 @@ const FRAG = /* glsl */`
   }
 
   vec2 domainWarp(vec2 p) {
-    float n1 = fbm(p + vec2(0.0, u_seed * 0.01 + u_time * 0.25));
-    float n2 = fbm(p + vec2(5.2 + u_time * 0.21, 1.3 + u_seed * 0.01));
-    return vec2(n1, n2);
+    float n1 = fbm(p + u_time * 0.1);
+    float n2 = fbm(p + u_time * 0.1 + 5.0);
+    return vec2(p.x + n1 * 0.2, p.y + n2 * 0.2);
   }
 
   float wavesNoise(vec2 st) {
     float n = 0.0;
     vec2 p1 = st * 3.0;
-    n += sin(p1.x + u_seed * 0.01 + u_time * 0.22) * 0.5 + 0.5;
-    n += sin(p1.y + u_seed * 0.01 + u_time * 0.19) * 0.5 + 0.5;
+    n += sin(p1.x + u_time * 0.2) * 0.5 + 0.5;
+    n += sin(p1.y + u_time * 0.2) * 0.5 + 0.5;
     vec2 p2 = vec2(
       st.x * cos(0.7854) - st.y * sin(0.7854),
       st.x * sin(0.7854) + st.y * cos(0.7854)
@@ -194,7 +193,7 @@ const FRAG = /* glsl */`
     float dist = length(p);
     float shape = smoothstep(0.62, 0.0, dist);
     float angle = atan(p.y, p.x);
-    float ripple = sin(angle * 2.0 + u_seed * 0.01 + u_time * 0.2) * 0.02;
+    float ripple = sin(angle * 2.0 + u_time * 0.2) * 0.02;
     return shape + ripple;
   }
 
@@ -232,7 +231,7 @@ const FRAG = /* glsl */`
     float dist = length(toCenter);
     float angle = atan(toCenter.y, toCenter.x);
     float pull = 1.0 - smoothstep(0.0, 1.5, dist);
-    float spiral = angle + u_seed * 0.006 + u_time * 0.28;
+    float spiral = angle + u_time * 0.1;
     float distortion = 0.0;
     distortion += sin(spiral * 2.0 + dist * 4.0) * 0.3;
     distortion += cos(spiral * 1.5 - dist * 3.0) * 0.2;
@@ -244,22 +243,22 @@ const FRAG = /* glsl */`
     vec2 warp = vec2(0.0);
     float s = u_warp_size;
     if (u_warp_shape == 0) {
-      float n = fbm(st * s + vec2(u_seed * 0.01 + u_time * 0.25, u_time * 0.18));
-      warp = vec2(n);
+      float n = fbm(st * s + u_time * 0.2);
+      warp = vec2(n) * 0.4;
     } else if (u_warp_shape == 1) {
-      float p = length(st - 0.5) * s + u_seed * 0.01 + u_time * 0.9;
+      float p = length(st - 0.5) * s + u_time;
       warp = vec2(sin(p), cos(p)) * 0.5;
     } else if (u_warp_shape == 2) {
-      float n = valueNoise(st * s + vec2(u_seed * 0.01 + u_time * 0.2, u_time * 0.15));
+      float n = valueNoise(st * s + u_time * 0.5);
       warp = vec2(n) * 0.5;
     } else if (u_warp_shape == 3) {
-      float n = worleyNoise(st * s + vec2(u_seed * 0.01 + u_time * 0.18, u_time * 0.12));
+      float n = worleyNoise(st * s + u_time * 0.5);
       warp = vec2(n) * 0.5;
     } else if (u_warp_shape == 4) {
-      float n = fbm(st * s + vec2(u_seed * 0.01 + u_time * 0.2, u_time * 0.16));
+      float n = fbm(st * s + u_time * 0.2);
       warp = vec2(n) * 0.4;
     } else if (u_warp_shape == 5) {
-      float n = voronoiNoise(st * s + vec2(u_seed * 0.01 + u_time * 0.16, u_time * 0.12));
+      float n = voronoiNoise(st * s + u_time * 0.2);
       warp = vec2(n) * 0.5;
     } else if (u_warp_shape == 6) {
       warp = domainWarp(st * s) * 0.5;
@@ -267,7 +266,7 @@ const FRAG = /* glsl */`
       float n = wavesNoise(st * s);
       warp = vec2(n) * 0.4;
     } else if (u_warp_shape == 8) {
-      float n = smoothGradient(st * s + vec2(u_seed * 0.01 + u_time * 0.22, u_time * 0.1));
+      float n = smoothGradient(st * s + u_time * 0.1);
       warp = vec2(n) * 0.5;
     } else if (u_warp_shape == 9) {
       float n = ovalNoise(st);
@@ -443,10 +442,7 @@ const FRAG = /* glsl */`
       gradientColor = calculateSharpBezier(warpedSt);
     }
 
-    vec3 noiseColor = vec3(rand(vec2(
-      st.x * 5.0 + u_seed * 0.01 + u_time * 0.7,
-      st.y * 5.0 - u_seed * 0.01 - u_time * 0.5
-    )));
+    vec3 noiseColor = vec3(rand(vec2(st.x * 5.0, st.y * 5.0)));
     vec3 finalColor = mix(gradientColor, noiseColor, clamp(u_noise, 0.0, 1.0));
     gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
   }
@@ -550,10 +546,32 @@ export function generateControlPoints(count: number, seed: number): ControlPoint
   const rand = seededPrng(seed);
   const n = Math.max(0, Math.min(count, MAX_CONTROL_POINTS));
   const points: ControlPoint[] = [];
+  const minDistance = Math.max(0.14, 0.28 - n * 0.012);
+
   for (let i = 0; i < n; i++) {
-    points.push({
-      x: rand(),
-      y: rand(),
+    let nextPoint: ControlPoint | null = null;
+
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const candidate = {
+        x: 0.12 + rand() * 0.76,
+        y: 0.12 + rand() * 0.76,
+      };
+
+      const isFarEnough = points.every((point) => {
+        const dx = point.x - candidate.x;
+        const dy = point.y - candidate.y;
+        return Math.hypot(dx, dy) >= minDistance;
+      });
+
+      if (isFarEnough) {
+        nextPoint = candidate;
+        break;
+      }
+    }
+
+    points.push(nextPoint ?? {
+      x: 0.12 + rand() * 0.76,
+      y: 0.12 + rand() * 0.76,
     });
   }
   return points;

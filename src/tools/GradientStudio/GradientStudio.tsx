@@ -5,7 +5,6 @@ import { useViewport } from '../../hooks/useViewport';
 import {
   renderGradient,
   generateControlPoints,
-  generateGridControlPoints,
   randomPalette,
   type ControlPoint,
   type GradientType,
@@ -53,6 +52,13 @@ const WARP_OPTIONS: Array<{ value: WarpShape; label: string }> = [
   { value: 'gravity', label: 'Gravity' },
 ];
 
+const ASPECT_PRESETS = [
+  { label: '1:1', width: 1, height: 1 },
+  { label: '3:4', width: 3, height: 4 },
+  { label: '4:3', width: 4, height: 3 },
+  { label: '16:9', width: 16, height: 9 },
+] as const;
+
 export default function GradientStudio() {
   const { viewportWidth, viewportHeight } = useViewport();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,20 +67,19 @@ export default function GradientStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draggingIndexRef = useRef<number | null>(null);
 
-  const [gradientType, setGradientType] = useState<GradientType>('sharp-bezier');
+  const [gradientType, setGradientType] = useState<GradientType>('soft-bezier');
   const [warpShape, setWarpShape] = useState<WarpShape>('smooth-noise');
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 99999));
   const [colors, setColors] = useState<string[]>(() => randomPalette(DEFAULT_COLOR_COUNT));
   const [exportW, setExportW] = useState(900);
   const [exportH, setExportH] = useState(1200);
+  const [selectedAspect, setSelectedAspect] = useState<(typeof ASPECT_PRESETS)[number]['label']>('3:4');
   const [warp, setWarp] = useState(27);
   const [warpSize, setWarpSize] = useState(33);
   const [noise, setNoise] = useState(53);
-  const [controlPoints, setControlPoints] = useState<ControlPoint[]>(() => generateGridControlPoints(DEFAULT_COLOR_COUNT));
+  const [controlPoints, setControlPoints] = useState<ControlPoint[]>(() => generateControlPoints(DEFAULT_COLOR_COUNT, seed));
   const [previewSize, setPreviewSize] = useState({ w: 0, h: 0 });
-  const [motionEnabled, setMotionEnabled] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const timeRef = useRef(0);
   const previewSizeRef = useRef({ w: 0, h: 0 });
   // Orientation-first behavior:
   // landscape (w > h) => side-by-side
@@ -145,11 +150,11 @@ export default function GradientStudio() {
         colors,
         controlPoints,
         seed,
-        time: motionEnabled ? timeRef.current : 0,
+        time: 0,
       },
       pw, ph,
     );
-  }, [gradientType, warpShape, warp, warpSize, noise, colors, controlPoints, seed, exportW, exportH, motionEnabled]);
+  }, [gradientType, warpShape, warp, warpSize, noise, colors, controlPoints, seed, exportW, exportH]);
 
   // Static render for option changes
   useEffect(() => {
@@ -162,20 +167,6 @@ export default function GradientStudio() {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, [renderPreview]);
-
-  // Animation loop (preview only)
-  useEffect(() => {
-    if (!motionEnabled) {
-      timeRef.current = 0;
-      renderPreview();
-      return;
-    }
-    const timer = window.setInterval(() => {
-      timeRef.current += 1 / 30;
-      renderPreview();
-    }, 33);
-    return () => window.clearInterval(timer);
-  }, [motionEnabled, renderPreview]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const showToast = (msg: string) => {
@@ -196,7 +187,7 @@ export default function GradientStudio() {
         colors,
         controlPoints,
         seed,
-        time: motionEnabled ? timeRef.current : 0,
+        time: 0,
       },
       exportW,
       exportH,
@@ -255,6 +246,30 @@ export default function GradientStudio() {
   };
 
   const clampDim = (v: number) => Math.max(100, Math.min(4000, v));
+  const applyAspectPreset = (presetLabel: (typeof ASPECT_PRESETS)[number]['label']) => {
+    const preset = ASPECT_PRESETS.find((item) => item.label === presetLabel);
+    if (!preset) return;
+
+    const { width: presetWidth, height: presetHeight } = preset;
+    const longEdge = Math.max(exportW, exportH);
+    const nextWidth = presetWidth >= presetHeight
+      ? longEdge
+      : Math.round((longEdge * presetWidth) / presetHeight);
+    const nextHeight = presetWidth >= presetHeight
+      ? Math.round((longEdge * presetHeight) / presetWidth)
+      : longEdge;
+
+    setSelectedAspect(presetLabel);
+    setExportW(clampDim(nextWidth));
+    setExportH(clampDim(nextHeight));
+  };
+
+  useEffect(() => {
+    const matched = ASPECT_PRESETS.find((preset) => exportW * preset.height === exportH * preset.width);
+    if (matched && matched.label !== selectedAspect) {
+      setSelectedAspect(matched.label);
+    }
+  }, [exportH, exportW, selectedAspect]);
 
   // ── UI ────────────────────────────────────────────────────────────────────
   return (
@@ -269,7 +284,7 @@ export default function GradientStudio() {
     >
       <ToolHeader title="渐变工坊" />
 
-      <div className={`flex flex-1 min-h-0 ${useMobileLayout ? 'overflow-y-auto' : 'overflow-hidden'} ${useMobileLayout ? 'px-3 pb-4' : 'px-8 py-8'}`}>
+      <div className={`flex flex-1 min-h-0 ${useMobileLayout ? 'overflow-y-auto' : 'overflow-hidden'} ${useMobileLayout ? 'px-3 py-4' : 'px-8 py-8'}`}>
         <div className={`mx-auto flex w-full ${useMobileLayout ? 'flex-col gap-4' : 'max-w-[1320px] items-start justify-center gap-7'}`}>
 
           {/* ── Preview ── */}
@@ -315,111 +330,97 @@ export default function GradientStudio() {
           <div
             className={`relative isolate overflow-hidden border border-white/75 ${
               useMobileLayout
-                ? 'w-full rounded-[24px] bg-white/95 shadow-[0_10px_22px_rgba(15,23,42,0.09),0_2px_6px_rgba(15,23,42,0.06)] max-h-[56vh] overflow-y-auto overscroll-contain'
-                : 'w-[320px] shrink-0 rounded-[24px] bg-white/90 backdrop-blur-md shadow-[0_12px_26px_rgba(15,23,42,0.12),0_2px_6px_rgba(15,23,42,0.07)]'
+                ? 'w-full rounded-[24px] bg-white/92 shadow-[0_12px_28px_rgba(15,23,42,0.08),0_2px_6px_rgba(15,23,42,0.05)] max-h-[56vh] overflow-y-auto overscroll-contain'
+                : 'w-[320px] shrink-0 rounded-[24px] bg-white/88 backdrop-blur-md shadow-[0_14px_30px_rgba(15,23,42,0.10),0_2px_6px_rgba(15,23,42,0.06)]'
             }`}
           >
-            <div className={`p-5 space-y-5 ${useMobileLayout ? '' : 'max-h-[min(78vh,860px)] overflow-y-auto overscroll-contain'}`}>
+            <div className={`p-4 space-y-4 ${useMobileLayout ? '' : 'max-h-[min(78vh,860px)] overflow-y-auto overscroll-contain'}`}>
+              <div className="space-y-3 rounded-[20px] bg-neutral-50/80 p-3.5">
+                <Row label="Gradient">
+                  <Select value={gradientType} onChange={v => setGradientType(v as GradientType)}>
+                    {GRADIENT_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </Row>
 
-            {/* Gradient type */}
-            <Row label="Gradient">
-              <Select value={gradientType} onChange={v => setGradientType(v as GradientType)}>
-                {GRADIENT_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </Select>
-            </Row>
+                <Row label="Warp Shape">
+                  <Select value={warpShape} onChange={v => setWarpShape(v as WarpShape)}>
+                    {WARP_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </Row>
 
-            {/* Warp shape */}
-            <Row label="Warp Shape">
-              <Select value={warpShape} onChange={v => setWarpShape(v as WarpShape)}>
-                {WARP_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </Select>
-            </Row>
+              </div>
 
-            {/* Dimensions */}
-            <div className="flex items-center gap-4">
-              <DimInput label="W" value={exportW} onChange={setExportW} onBlur={v => setExportW(clampDim(v))} />
-              <DimInput label="H" value={exportH} onChange={setExportH} onBlur={v => setExportH(clampDim(v))} />
-            </div>
+              <div className="space-y-3 rounded-[20px] bg-neutral-50/80 p-3.5">
+                <Row label="Canvas">
+                  <Select value={selectedAspect} onChange={(value) => applyAspectPreset(value as (typeof ASPECT_PRESETS)[number]['label'])}>
+                    {ASPECT_PRESETS.map((preset) => (
+                      <option key={preset.label} value={preset.label}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Row>
 
-            <Divider />
-
-            {/* Sliders */}
-            <div className="space-y-3">
-              <Slider label="Warp"      value={warp}     onChange={setWarp} />
-              <Slider label="Warp Size" value={warpSize} onChange={setWarpSize} />
-              <Slider label="Noise"     value={noise}    onChange={setNoise} />
-            </div>
-
-            <Divider />
-
-            <Row label="Motion">
-              <button
-                onClick={() => setMotionEnabled(v => !v)}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  motionEnabled
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-                }`}
-              >
-                {motionEnabled ? 'On' : 'Off'}
-              </button>
-            </Row>
-
-            <Divider />
-
-            {/* Colors */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-neutral-700">Colors</span>
-                <div className="flex items-center gap-1.5">
-                  <IconBtn title="从图片导入" onClick={() => fileInputRef.current?.click()}>
-                    <ImageIcon size={14} />
-                  </IconBtn>
-                  <IconBtn title="重置形态" onClick={handleRandomize}>
-                    <RefreshCw size={14} />
-                  </IconBtn>
-                  <IconBtn title="添加颜色" onClick={handleAddColor}>
-                    <Plus size={14} />
-                  </IconBtn>
+                <div className="ml-auto grid w-[156px] grid-cols-1 gap-2.5 sm:w-full sm:grid-cols-2">
+                  <DimInput label="W" value={exportW} onChange={setExportW} onBlur={v => setExportW(clampDim(v))} />
+                  <DimInput label="H" value={exportH} onChange={setExportH} onBlur={v => setExportH(clampDim(v))} />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                {colors.map((color, i) => (
-                  <div key={i} className="flex items-center gap-2.5 group">
-                    <div
-                      className="w-5 h-5 rounded-full shrink-0 border border-neutral-200"
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-sm text-neutral-600 font-mono flex-1 tracking-wide">
-                      {color.replace('#', '').toUpperCase()}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveColor(i)}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 text-neutral-400 hover:text-neutral-700 transition-all"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <Slider label="Warp" value={warp} onChange={setWarp} />
+                <Slider label="Warp Size" value={warpSize} onChange={setWarpSize} />
+                <Slider label="Noise" value={noise} onChange={setNoise} />
               </div>
-            </div>
 
-            <Divider />
+              <div className="space-y-3 rounded-[20px] bg-neutral-50/80 p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-neutral-700">Colors</span>
+                  <div className="flex items-center gap-1.5">
+                    <IconBtn title="从图片导入" onClick={() => fileInputRef.current?.click()}>
+                      <ImageIcon size={14} />
+                    </IconBtn>
+                    <IconBtn title="重置形态" onClick={handleRandomize}>
+                      <RefreshCw size={14} />
+                    </IconBtn>
+                    <IconBtn title="添加颜色" onClick={handleAddColor}>
+                      <Plus size={14} />
+                    </IconBtn>
+                  </div>
+                </div>
 
-              {/* Download */}
+                <div className="space-y-2">
+                  {colors.map((color, i) => (
+                    <div key={i} className="flex items-center gap-2.5 rounded-[14px] bg-white/92 px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                      <div
+                        className="h-5 w-5 shrink-0 rounded-full border border-neutral-200"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="flex-1 font-mono text-sm tracking-wide text-neutral-600">
+                        {color.replace('#', '').toUpperCase()}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveColor(i)}
+                        className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <button
                 onClick={handleDownload}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-neutral-900 py-3 text-sm font-medium text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] transition-colors hover:bg-neutral-800"
               >
                 <Download size={14} />
                 Download
               </button>
-
             </div>
           </div>
         </div>
@@ -448,8 +449,8 @@ export default function GradientStudio() {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-neutral-700">{label}</span>
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm font-medium text-neutral-600">{label}</span>
       {children}
     </div>
   );
@@ -466,7 +467,7 @@ function Select({
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="text-sm border border-neutral-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none text-neutral-700 cursor-pointer"
+      className="w-[156px] min-w-[156px] cursor-pointer rounded-[14px] bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none ring-1 ring-neutral-200/80"
     >
       {children}
     </select>
@@ -482,8 +483,8 @@ function DimInput({
   onBlur: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-neutral-500">{label}</span>
+    <div className="flex items-center gap-2 rounded-[16px] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-neutral-200/80">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">{label}</span>
       <input
         type="number"
         value={value}
@@ -491,7 +492,7 @@ function DimInput({
         max={4000}
         onChange={e => onChange(Number(e.target.value))}
         onBlur={e => onBlur(Number(e.target.value))}
-        className="w-20 text-sm border border-neutral-200 rounded-lg px-2.5 py-1.5 focus:outline-none text-neutral-700"
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-neutral-700 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
     </div>
   );
@@ -505,22 +506,21 @@ function Slider({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm text-neutral-500 w-20 shrink-0">{label}</span>
+    <div className="rounded-[16px] bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-neutral-200/80">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-neutral-600">{label}</span>
+        <span className="text-xs font-semibold text-neutral-400">{value}</span>
+      </div>
       <input
         type="range"
         min={0}
         max={100}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="flex-1 h-1 cursor-pointer accent-neutral-900"
+        className="h-1.5 w-full cursor-pointer accent-neutral-900"
       />
     </div>
   );
-}
-
-function Divider() {
-  return <div className="h-px bg-neutral-100" />;
 }
 
 function IconBtn({
@@ -534,7 +534,7 @@ function IconBtn({
     <button
       onClick={onClick}
       title={title}
-      className="p-1.5 rounded-md hover:bg-neutral-100 transition-colors text-neutral-500 hover:text-neutral-700"
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-neutral-500 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-neutral-200/80 transition-colors hover:bg-neutral-900 hover:text-white"
     >
       {children}
     </button>

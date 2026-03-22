@@ -324,7 +324,7 @@ export default function GearWheel() {
   const panEpochRef = useRef<number | null>(null);
   const wheelEpochRef = useRef<number | null>(null);
   const physics = isMobile ? MOBILE_PHYSICS : DESKTOP_PHYSICS;
-  const radius = isMobile ? 430 : 600;
+  const radius = isMobile ? 430 : 740;
   const focusX = isMobile
     ? Math.max(38, Math.min(72, viewportWidth * 0.13))
     : viewportWidth * 0.15;
