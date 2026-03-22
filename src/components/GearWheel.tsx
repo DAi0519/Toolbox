@@ -6,7 +6,6 @@ import {
   useSpring,
   animate,
   useTransform,
-  useMotionTemplate,
   useMotionValueEvent,
   MotionValue,
   type PanInfo,
@@ -14,9 +13,8 @@ import {
 import { TOOLS } from '../config/tools';
 import { useViewport } from '../hooks/useViewport';
 
-const WHEEL_ROTATION_KEY = 'gearWheelRotation.v2';
 const DEFAULT_FOCUS_TOOL_ID = 'batch-renamer';
-const WHEEL_SNAP_DELAY_MS = 120;
+const WHEEL_SNAP_DELAY_MS = 90;
 const NAVIGATE_DELAY_MS = 150;
 const ROTATION_LOCK_EPSILON = 0.5;
 const INSTANT_SNAP_VELOCITY_THRESHOLD = 0.02;
@@ -24,15 +22,58 @@ const MOBILE_VISIBLE_DISTANCE_CUTOFF = 42;
 const DESKTOP_VISIBLE_DISTANCE_CUTOFF = 47;
 const MOBILE_POINTER_RANGE = 52;
 const DESKTOP_POINTER_RANGE = 50;
+const ANGLE_STEP = 10;
+const MIN_SLOT_COUNT = 45;
+const STATIC_ARC_TOOL_LIMIT = 7;
+const EDGE_RESISTANCE = 0.24;
 
-// Triple-repeat for seamless infinite rotation feel visually
-const REPEATED_TOOLS = [...TOOLS, ...TOOLS, ...TOOLS].map((tool, i) => ({
-  ...tool,
-  uniqueId: `${tool.id}-${i}`
-}));
+function getRepeatSetCount(toolCount: number): number {
+  if (toolCount <= 0) return 1;
 
-const ITEM_COUNT = REPEATED_TOOLS.length; 
-const ANGLE_STEP = 360 / ITEM_COUNT; // 10°
+  const minRepeatCount = Math.max(3, Math.ceil(MIN_SLOT_COUNT / toolCount));
+  return minRepeatCount % 2 === 0 ? minRepeatCount + 1 : minRepeatCount;
+}
+
+const USE_STATIC_ARC = TOOLS.length <= STATIC_ARC_TOOL_LIMIT;
+const REPEAT_SET_COUNT = getRepeatSetCount(TOOLS.length);
+const ACTIVE_REPEAT_SET_COUNT = USE_STATIC_ARC ? 1 : REPEAT_SET_COUNT;
+const CENTER_REPEAT_INDEX = Math.floor(ACTIVE_REPEAT_SET_COUNT / 2);
+let homeSessionRotation: number | null = null;
+const REPEATED_TOOLS = Array.from({ length: ACTIVE_REPEAT_SET_COUNT }, (_, repeatIndex) =>
+  TOOLS.map((tool, toolIndex) => ({
+    ...tool,
+    uniqueId: `${tool.id}-${repeatIndex}-${toolIndex}`,
+    slotIndex: repeatIndex * TOOLS.length + toolIndex,
+  })),
+).flat();
+const WHEEL_MIN_ROTATION = USE_STATIC_ARC
+  ? -Math.max(0, (REPEATED_TOOLS.length - 1) * ANGLE_STEP)
+  : null;
+const WHEEL_MAX_ROTATION = USE_STATIC_ARC ? 0 : null;
+
+function clampRotation(value: number): number {
+  if (WHEEL_MIN_ROTATION === null || WHEEL_MAX_ROTATION === null) {
+    return value;
+  }
+
+  return Math.min(WHEEL_MAX_ROTATION, Math.max(WHEEL_MIN_ROTATION, value));
+}
+
+function applyEdgeResistance(value: number): number {
+  if (WHEEL_MIN_ROTATION === null || WHEEL_MAX_ROTATION === null) {
+    return value;
+  }
+
+  if (value < WHEEL_MIN_ROTATION) {
+    return WHEEL_MIN_ROTATION + (value - WHEEL_MIN_ROTATION) * EDGE_RESISTANCE;
+  }
+
+  if (value > WHEEL_MAX_ROTATION) {
+    return WHEEL_MAX_ROTATION + (value - WHEEL_MAX_ROTATION) * EDGE_RESISTANCE;
+  }
+
+  return value;
+}
 
 interface GearPhysics {
   stiffness: number;
@@ -50,39 +91,18 @@ interface GearPhysics {
 }
 
 function getDefaultRotation(): number {
-  const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
-  if (defaultIndex < 0) return 0;
-  return -(defaultIndex * ANGLE_STEP);
-}
+  if (TOOLS.length === 0) return 0;
 
-function readStoredRotation(): number | null {
-  if (typeof window === 'undefined') return null;
-
-  let storedRotation: string | null = null;
-  try {
-    storedRotation = sessionStorage.getItem(WHEEL_ROTATION_KEY);
-  } catch {
-    return null;
-  }
-
-  if (!storedRotation) return getDefaultRotation();
-
-  const parsed = Number(storedRotation);
-  return Number.isFinite(parsed) ? parsed : null;
+  const defaultIndex = USE_STATIC_ARC
+    ? Math.floor((TOOLS.length - 1) / 2)
+    : TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
+  const focusIndex = defaultIndex >= 0 ? defaultIndex : 0;
+  const centeredSlotIndex = CENTER_REPEAT_INDEX * TOOLS.length + focusIndex;
+  return -(centeredSlotIndex * ANGLE_STEP);
 }
 
 function getInitialRotation(): number {
-  return readStoredRotation() ?? getDefaultRotation();
-}
-
-function persistRotation(value: number) {
-  if (typeof window === 'undefined') return;
-
-  try {
-    sessionStorage.setItem(WHEEL_ROTATION_KEY, value.toString());
-  } catch {
-    // Ignore persistence failures and keep runtime interaction responsive.
-  }
+  return homeSessionRotation ?? getDefaultRotation();
 }
 
 // ──── Physics ────
@@ -90,23 +110,23 @@ function persistRotation(value: number) {
 const DESKTOP_PHYSICS: GearPhysics = {
   // Wheel spring feel (heavier, stiffer, more damped)
   // Reduced damping and mass to make the wheel feel lighter overall
-  stiffness: 80,
-  damping: 30, // Previously 45
-  mass: 1.5, // Previously 3
+  stiffness: 132,
+  damping: 24,
+  mass: 0.92,
   
   // Drag handling
-  panMultiplier: 0.1,
+  panMultiplier: 0.12,
   
   // Drag inertia (Friction after releasing drag)
-  inertiaMultiplier: 0.1,
-  inertiaVelocity: 0.1,
-  inertiaTimeConstant: 300,
+  inertiaMultiplier: 0.16,
+  inertiaVelocity: 0.14,
+  inertiaTimeConstant: 220,
   
   // Trackpad / Mouse Wheel Scroll
   // Increased multiplier to reduce the "physical effort" needed to scroll
-  wheelMultiplier: 0.08, // Previously 0.035
-  snapStiffness: 120,
-  snapDamping: 35,
+  wheelMultiplier: 0.125,
+  snapStiffness: 180,
+  snapDamping: 28,
   magneticThreshold: 0,
   magneticStrength: 0,
 };
@@ -139,29 +159,20 @@ const ACTIVE_COLOR_DISTANCE = [0, 5];
 const ACTIVE_COLOR_STOPS = ['#002FA7', '#000000'];
 const MOBILE_LABEL_BASE_SIZE = MOBILE_FONT_SIZES[0];
 const MOBILE_SCALE_STOPS = MOBILE_FONT_SIZES.map((size) => size / MOBILE_LABEL_BASE_SIZE);
-const DESKTOP_BLUR_STOPS = [0, 0, 0.7, 2.6, 6.25];
-
-function normalizeAngle(value: number): number {
-  let normalized = value % 360;
-  if (normalized > 180) normalized -= 360;
-  if (normalized <= -180) normalized += 360;
-  return normalized;
-}
-
 function getNearestSnapRotation(value: number): number {
-  return Math.round(value / ANGLE_STEP) * ANGLE_STEP;
+  return clampRotation(Math.round(value / ANGLE_STEP) * ANGLE_STEP);
 }
 
 function getFocusDistance(rotationValue: number, slotAngle: number): number {
-  return Math.abs(normalizeAngle(rotationValue + slotAngle));
+  return Math.abs(rotationValue + slotAngle);
 }
 
 function getSnapDelta(value: number): number {
   return getNearestSnapRotation(value) - value;
 }
 
-function getSelectionTargetRotation(currentRotation: number, slotAngle: number): number {
-  return currentRotation + normalizeAngle(-slotAngle - currentRotation);
+function getSelectionTargetRotation(slotAngle: number): number {
+  return -slotAngle;
 }
 
 function applyMagneticDelta(
@@ -170,7 +181,7 @@ function applyMagneticDelta(
   threshold: number,
   strength: number,
 ) {
-  const rawNext = rotation.get() + delta;
+  const rawNext = applyEdgeResistance(rotation.get() + delta);
   const snapDelta = getSnapDelta(rawNext);
   const distance = Math.abs(snapDelta);
 
@@ -324,7 +335,7 @@ export default function GearWheel() {
   const panEpochRef = useRef<number | null>(null);
   const wheelEpochRef = useRef<number | null>(null);
   const physics = isMobile ? MOBILE_PHYSICS : DESKTOP_PHYSICS;
-  const radius = isMobile ? 430 : 740;
+  const radius = isMobile ? 430 : USE_STATIC_ARC ? 670 : 710;
   const focusX = isMobile
     ? Math.max(38, Math.min(72, viewportWidth * 0.13))
     : viewportWidth * 0.15;
@@ -336,7 +347,7 @@ export default function GearWheel() {
   const labelMaxWidth = isMobile ? '68vw' : 'none';
   const buttonPadding = isMobile ? '8px 12px' : '6px 4px';
   
-  // Restore prior focus in this version; otherwise default to Batch Renamer.
+  // Fresh visits start from center; returning from a tool restores the last in-session home position.
   if (initialRotationRef.current === null) {
     initialRotationRef.current = getInitialRotation();
   }
@@ -375,7 +386,7 @@ export default function GearWheel() {
       return;
     }
 
-    rotation.set(rotation.get() + delta);
+    rotation.set(applyEdgeResistance(rotation.get() + delta));
   }, [
     rotation,
     physics.magneticThreshold,
@@ -425,18 +436,9 @@ export default function GearWheel() {
     return interactionEpochRef.current;
   }, [stopNavigateTimeout, stopPendingMobilePanFrame, stopRotationAnimation, stopWheelSnapTimeout]);
 
-  useEffect(() => {
-    const handlePageHide = () => {
-      persistRotation(rotation.get());
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      persistRotation(rotation.get());
-      resetInteraction();
-    };
+  useEffect(() => () => {
+    homeSessionRotation = clampRotation(rotation.get());
+    resetInteraction();
   }, [resetInteraction, rotation]);
   
   const smoothRotation = useSpring(rotation, {
@@ -462,7 +464,6 @@ export default function GearWheel() {
       onComplete: () => {
         if (interactionEpochRef.current !== epoch) return;
         rotation.set(targetRotation);
-        persistRotation(targetRotation);
         rotationAnimationRef.current = null;
         snapPulse();
       },
@@ -516,7 +517,6 @@ export default function GearWheel() {
         if (interactionEpochRef.current !== epoch) return;
         const snapped = getNearestSnapRotation(rotation.get());
         rotation.set(snapped);
-        persistRotation(snapped);
         rotationAnimationRef.current = null;
         snapPulse();
       },
@@ -570,13 +570,12 @@ export default function GearWheel() {
 
     const slotAngle = index * ANGLE_STEP;
     const currentRot = rotation.get();
-    const targetRotation = getSelectionTargetRotation(currentRot, slotAngle);
+    const targetRotation = getSelectionTargetRotation(slotAngle);
     const diff = targetRotation - currentRot;
 
     if (Math.abs(diff) < ROTATION_LOCK_EPSILON) {
       // If it's essentially already at the exact focus point, jump immediately
       rotation.set(targetRotation);
-      persistRotation(targetRotation);
       navigate(`/tool/${routeId}`);
     } else {
       // Animate strictly to the absolute focus position, but much faster
@@ -590,7 +589,6 @@ export default function GearWheel() {
           if (interactionEpochRef.current !== epoch) return;
           rotation.set(targetRotation); // Lock to absolute mathematical center
           rotationAnimationRef.current = null;
-          persistRotation(targetRotation);
 
           // Introduce a minimal pause after it rigidly locks into place
           navigateTimeoutRef.current = setTimeout(() => {
@@ -635,34 +633,20 @@ export default function GearWheel() {
         }}
       >
         {REPEATED_TOOLS.map((tool, index) => (
-          isMobile ? (
-            <MobileArcItem
-              key={tool.uniqueId}
-              tool={tool}
-              index={index}
-              smoothRotation={smoothRotation}
-              radius={radius}
-              labelOffset={labelOffset}
-              labelLetterSpacing={labelLetterSpacing}
-              labelMaxWidth={labelMaxWidth}
-              buttonPadding={buttonPadding}
-              onSelect={handleSelectTool}
-            />
-          ) : (
-            <DesktopArcItem
-              key={tool.uniqueId}
-              tool={tool}
-              index={index}
-              smoothRotation={smoothRotation}
-              radius={radius}
-              labelOffset={labelOffset}
-              labelFontSizes={labelFontSizes}
-              labelLetterSpacing={labelLetterSpacing}
-              labelMaxWidth={labelMaxWidth}
-              buttonPadding={buttonPadding}
-              onSelect={handleSelectTool}
-            />
-          )
+          <ArcItem
+            key={tool.uniqueId}
+            tool={tool}
+            index={index}
+            isMobile={isMobile}
+            smoothRotation={smoothRotation}
+            radius={radius}
+            labelOffset={labelOffset}
+            labelFontSizes={labelFontSizes}
+            labelLetterSpacing={labelLetterSpacing}
+            labelMaxWidth={labelMaxWidth}
+            buttonPadding={buttonPadding}
+            onSelect={handleSelectTool}
+          />
         ))}
       </motion.div>
 
@@ -689,100 +673,10 @@ export default function GearWheel() {
 // ──────────────────────────────────────
 // ArcItem — a single label on the wheel
 // ──────────────────────────────────────
-const MobileArcItem = memo(function MobileArcItem({
+const ArcItem = memo(function ArcItem({
   tool,
   index,
-  smoothRotation,
-  radius,
-  labelOffset,
-  labelLetterSpacing,
-  labelMaxWidth,
-  buttonPadding,
-  onSelect,
-}: {
-  tool: { id: string; name: string };
-  index: number;
-  smoothRotation: MotionValue<number>;
-  radius: number;
-  labelOffset: number;
-  labelLetterSpacing: string;
-  labelMaxWidth: string;
-  buttonPadding: string;
-  onSelect: (id: string, index: number) => void;
-}) {
-  const slotAngle = index * ANGLE_STEP; // static angle for this slot
-
-  // How far is this item from the focal center (the left-most point = 0°)?
-  const dist = useTransform(smoothRotation, (r) => getFocusDistance(r, slotAngle));
-  const opacity = useTransform(dist, DIST_STOPS, MOBILE_OPACITY_STOPS);
-  const mobileScale = useTransform(dist, DIST_STOPS, MOBILE_SCALE_STOPS);
-  const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
-  const pointerEvents = useTransform(dist, (d) => (d < MOBILE_POINTER_RANGE ? 'auto' : 'none'));
-  const visibility = useTransform(
-    dist,
-    (d) => (d <= MOBILE_VISIBLE_DISTANCE_CUTOFF ? 'visible' : 'hidden'),
-  );
-
-  return (
-    <motion.div
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        transform: `rotate(${slotAngle}deg) translateX(${radius}px) translateZ(0)`,
-        transformOrigin: '0 0',
-        visibility,
-        willChange: 'transform',
-        backfaceVisibility: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: labelOffset,
-          top: '50%',
-          transform: 'translateY(-50%) translateZ(0)',
-          transformOrigin: 'left center',
-        }}
-      >
-        <motion.button
-          onClick={() => onSelect(tool.id, index)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color,
-            fontWeight: 800,
-            letterSpacing: labelLetterSpacing,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: labelMaxWidth,
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            textAlign: 'left',
-            padding: buttonPadding,
-            borderRadius: 10,
-            fontSize: MOBILE_LABEL_BASE_SIZE,
-            opacity,
-            pointerEvents,
-            scale: mobileScale,
-            willChange: 'transform, opacity, color',
-            transformOrigin: 'left center',
-            backfaceVisibility: 'hidden',
-            WebkitFontSmoothing: 'antialiased',
-            textRendering: 'optimizeSpeed',
-          }}
-        >
-          {tool.name}
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-});
-
-const DesktopArcItem = memo(function DesktopArcItem({
-  tool,
-  index,
+  isMobile,
   smoothRotation,
   radius,
   labelOffset,
@@ -794,6 +688,7 @@ const DesktopArcItem = memo(function DesktopArcItem({
 }: {
   tool: { id: string; name: string };
   index: number;
+  isMobile: boolean;
   smoothRotation: MotionValue<number>;
   radius: number;
   labelOffset: number;
@@ -805,15 +700,23 @@ const DesktopArcItem = memo(function DesktopArcItem({
 }) {
   const slotAngle = index * ANGLE_STEP;
   const dist = useTransform(smoothRotation, (r) => getFocusDistance(r, slotAngle));
+  const opacity = useTransform(
+    dist,
+    DIST_STOPS,
+    isMobile ? MOBILE_OPACITY_STOPS : DESKTOP_OPACITY_STOPS,
+  );
   const fontSize = useTransform(dist, DIST_STOPS, labelFontSizes);
-  const opacity = useTransform(dist, DIST_STOPS, DESKTOP_OPACITY_STOPS);
-  const blurAmount = useTransform(dist, DIST_STOPS, DESKTOP_BLUR_STOPS);
-  const blurFilter = useMotionTemplate`blur(${blurAmount}px)`;
+  const mobileScale = useTransform(dist, DIST_STOPS, MOBILE_SCALE_STOPS);
   const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
-  const pointerEvents = useTransform(dist, (d) => (d < DESKTOP_POINTER_RANGE ? 'auto' : 'none'));
+  const pointerEvents = useTransform(
+    dist,
+    (d) => (d < (isMobile ? MOBILE_POINTER_RANGE : DESKTOP_POINTER_RANGE) ? 'auto' : 'none'),
+  );
   const visibility = useTransform(
     dist,
-    (d) => (d <= DESKTOP_VISIBLE_DISTANCE_CUTOFF ? 'visible' : 'hidden'),
+    (d) => (d <= (isMobile ? MOBILE_VISIBLE_DISTANCE_CUTOFF : DESKTOP_VISIBLE_DISTANCE_CUTOFF)
+      ? 'visible'
+      : 'hidden'),
   );
 
   return (
@@ -855,15 +758,15 @@ const DesktopArcItem = memo(function DesktopArcItem({
             textAlign: 'left',
             padding: buttonPadding,
             borderRadius: 10,
-            fontSize,
+            fontSize: isMobile ? MOBILE_LABEL_BASE_SIZE : fontSize,
             opacity,
-            filter: blurFilter,
             pointerEvents,
-            willChange: 'transform, opacity, filter, color',
+            scale: isMobile ? mobileScale : 1,
+            willChange: 'transform, opacity, color',
             transformOrigin: 'left center',
             backfaceVisibility: 'hidden',
             WebkitFontSmoothing: 'antialiased',
-            textRendering: 'geometricPrecision',
+            textRendering: isMobile ? 'optimizeSpeed' : 'optimizeLegibility',
           }}
         >
           {tool.name}

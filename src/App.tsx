@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense } from 'react';
 import GearWheel from './components/GearWheel';
 import ToolLayout from './components/ToolLayout';
@@ -50,6 +50,7 @@ function App() {
                 }
               />
             ))}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </div>

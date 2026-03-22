@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -21,11 +21,10 @@ function readViewport(): ViewportState {
 
 export function useViewport() {
   const [state, setState] = useState<ViewportState>(() => readViewport());
-  const frameRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const commitViewport = () => {
-      frameRef.current = null;
       const next = readViewport();
       setState((prev) => (
         prev.viewportWidth === next.viewportWidth &&
@@ -33,26 +32,29 @@ export function useViewport() {
       ) ? prev : next);
     };
 
-    const scheduleViewportRead = () => {
-      if (frameRef.current !== null) return;
-      frameRef.current = window.requestAnimationFrame(commitViewport);
-    };
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const resizeObserver = new ResizeObserver(commitViewport);
 
-    scheduleViewportRead();
+    commitViewport();
+    intervalRef.current = window.setInterval(commitViewport, 80);
+    resizeObserver.observe(document.documentElement);
 
-    window.addEventListener('resize', scheduleViewportRead);
-    window.addEventListener('orientationchange', scheduleViewportRead);
-    window.visualViewport?.addEventListener('resize', scheduleViewportRead);
-    window.visualViewport?.addEventListener('scroll', scheduleViewportRead);
+    window.addEventListener('resize', commitViewport);
+    window.addEventListener('orientationchange', commitViewport);
+    window.visualViewport?.addEventListener('resize', commitViewport);
+    window.visualViewport?.addEventListener('scroll', commitViewport);
+    mediaQuery.addEventListener('change', commitViewport);
 
     return () => {
-      if (frameRef.current !== null) {
-        window.cancelAnimationFrame(frameRef.current);
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
       }
-      window.removeEventListener('resize', scheduleViewportRead);
-      window.removeEventListener('orientationchange', scheduleViewportRead);
-      window.visualViewport?.removeEventListener('resize', scheduleViewportRead);
-      window.visualViewport?.removeEventListener('scroll', scheduleViewportRead);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', commitViewport);
+      window.removeEventListener('orientationchange', commitViewport);
+      window.visualViewport?.removeEventListener('resize', commitViewport);
+      window.visualViewport?.removeEventListener('scroll', commitViewport);
+      mediaQuery.removeEventListener('change', commitViewport);
     };
   }, []);
 
