@@ -7,9 +7,6 @@ GearWheel.tsx: 齿轮轮盘导航，桌面/移动端分离物理参数，拖拽+
 ToolHeader.tsx: 通用工具页头，左侧返回按钮 + 标题，右侧可注入 actions
 ToolHeaderActionsContext.tsx: 提供 `useToolHeaderActions(slot)`，给 ToolLayout 子树注入右侧 header actions
 ToolLayout.tsx: 标准工具页面容器，内置 ToolHeader、100dvh 布局与内容滚动区
-ToolPlaceholder.tsx: 占位工具页面样式
-ui/Toast.tsx: 预留文件（当前为空）
-ui/ToastContext.tsx: 预留文件（当前为空）
 
 关键约束（新增 2026-03-05）
 - GearWheel 角度持久化 key 固定为 `gearWheelRotation.v2`，默认焦点工具 id 为 `batch-renamer`。

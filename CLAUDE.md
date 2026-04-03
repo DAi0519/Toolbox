@@ -7,8 +7,7 @@ src/ - 源代码
   components/ - 共享组件与首页齿轮导航 (GearWheel, ToolLayout, ToolHeader 等)
   config/ - 配置文件 (tools.ts 工具注册表)
   hooks/ - 设备与视口能力 (useViewport)
-  tools/ - 各工具模块 (14个工具: ColorPicker, BatchRenamer, ImageStudio 等)
-  docs/ - 评审/流程文档目录 (允许为空)
+  tools/ - 各工具模块 (5个工具: ColorPicker, BatchRenamer, ImageStudio, GradientStudio, MusicPad)
 public/ - 静态资源 (DouyinSansBold.otf 字体)
 output/ - 自动化检查输出 (含 Playwright 移动端截图与 report.json)
 </directory>
@@ -42,7 +41,8 @@ useViewport.ts - 读取 visualViewport，提供 isMobile / viewportWidth / viewp
 - **BatchRenamer**: 拖拽上传、多规则重命名、冲突处理、ZIP 导出
 - **ImageStudio**: 全屏 AI 图像生成，API Key 管理，History Drawer
 - **ColorPicker**: 全屏色板提取，交互色轮，移动端底部面板
-- 其他 11 个工具: ImageTools, Typography, CodeFormat, Converter, Generator, Calculator, Encoder, Compressor, Validator, Minifier, Beautifier
+- **GradientStudio**: 全屏 Canvas 2D 噪声渐变生成器
+- **MusicPad**: 音乐打击垫工具
 
 ## 文档维护规则
 
