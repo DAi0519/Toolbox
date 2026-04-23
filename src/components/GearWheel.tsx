@@ -216,7 +216,7 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
   const renderAudioTick = useCallback((ctx: AudioContext, volume: number) => {
     const now = ctx.currentTime;
     const bodyDur = isMobile ? 0.014 : 0.01;
-    const effectiveVolume = Math.min(isMobile ? 0.18 : 0.12, volume * (isMobile ? 1 : 0.88));
+    const effectiveVolume = Math.min(isMobile ? 0.32 : 0.23, volume * (isMobile ? 1.35 : 1.2));
 
     const bodyFilter = ctx.createBiquadFilter();
     bodyFilter.type = 'bandpass';
@@ -301,7 +301,7 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     if (now - lastTickMsRef.current < 52) return; // cap ~19 ticks/sec so fast flings stay crisp
     lastTickMsRef.current = now;
     vibrate(1);
-    playAudioTick(0.16);
+    playAudioTick(0.24);
   }, [enabled, playAudioTick, vibrate]);
 
   // Heavier pulse — fires once when the spring settles after release.
