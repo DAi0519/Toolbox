@@ -127,18 +127,18 @@ const DESKTOP_PHYSICS: GearPhysics = {
 };
 
 const MOBILE_PHYSICS: GearPhysics = {
-  stiffness: 88,
-  damping: 34,
-  mass: 1.05,
-  panMultiplier: 0.068,
-  inertiaMultiplier: 0.038,
-  inertiaVelocity: 0.048,
+  stiffness: 108,
+  damping: 28,
+  mass: 0.92,
+  panMultiplier: 0.078,
+  inertiaMultiplier: 0.042,
+  inertiaVelocity: 0.052,
   inertiaTimeConstant: 210,
   wheelMultiplier: 0.04,
-  snapStiffness: 150,
-  snapDamping: 38,
-  magneticThreshold: ANGLE_STEP * 0.34,
-  magneticStrength: 0.44,
+  snapStiffness: 172,
+  snapDamping: 30,
+  magneticThreshold: ANGLE_STEP * 0.18,
+  magneticStrength: 0.12,
 };
 
 // Module-level constants so ArcItem memo comparisons always see stable references.
@@ -215,7 +215,7 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
   const renderAudioTick = useCallback((ctx: AudioContext, volume: number) => {
     const now = ctx.currentTime;
     const bodyDur = isMobile ? 0.009 : 0.0065;
-    const effectiveVolume = Math.min(isMobile ? 0.1 : 0.078, volume * (isMobile ? 0.68 : 0.6));
+    const effectiveVolume = Math.min(isMobile ? 0.14 : 0.096, volume * (isMobile ? 0.9 : 0.76));
 
     const bodyFilter = ctx.createBiquadFilter();
     bodyFilter.type = 'lowpass';
@@ -256,9 +256,18 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
           pendingTickVolumeRef.current = null;
           renderAudioTick(ctx, pendingVolume);
         });
+      } else if (ctx?.state === 'running') {
+        const gain = ctx.createGain();
+        gain.gain.value = 0.0001;
+        gain.connect(ctx.destination);
+        const osc = ctx.createOscillator();
+        osc.frequency.value = isMobile ? 880 : 960;
+        osc.connect(gain);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.003);
       }
     } catch { /* ignore */ }
-  }, [enabled, renderAudioTick]);
+  }, [enabled, isMobile, renderAudioTick]);
 
   const vibrate = useCallback((pattern: number | number[]) => {
     if (!hasVibrationApiRef.current) return false;
@@ -297,7 +306,7 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     if (now - lastTickMsRef.current < 40) return; // cap ≤ 25 ticks/sec
     lastTickMsRef.current = now;
     vibrate(1);
-    playAudioTick(0.11);
+    playAudioTick(0.16);
   }, [enabled, playAudioTick, vibrate]);
 
   // Heavier pulse — fires once when the spring settles after release.
@@ -306,7 +315,7 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
   const snapPulse = useCallback(() => {
     if (!enabled) return;
     vibrate([5, 30, 2]);
-    playAudioTick(0.19);
+    playAudioTick(0.24);
   }, [enabled, playAudioTick, vibrate]);
 
   // Subscribe to smoothRotation; fire tick whenever the focused slot changes.
@@ -452,7 +461,7 @@ export default function GearWheel() {
   const indicatorHalo = useMotionTemplate`0 0 ${indicatorHaloBlur}px rgba(0, 47, 167, ${indicatorHaloAlpha})`;
 
   const { unlockAudio, trackRotation, snapPulse } = useGearHaptics(true, isMobile);
-  useMotionValueEvent(smoothRotation, 'change', trackRotation);
+  useMotionValueEvent(rotation, 'change', trackRotation);
 
   const animateToSnap = useCallback((
     targetRotation: number,
