@@ -127,16 +127,16 @@ const DESKTOP_PHYSICS: GearPhysics = {
 };
 
 const MOBILE_PHYSICS: GearPhysics = {
-  stiffness: 108,
-  damping: 28,
-  mass: 0.92,
+  stiffness: 124,
+  damping: 25,
+  mass: 0.84,
   panMultiplier: 0.078,
   inertiaMultiplier: 0.042,
   inertiaVelocity: 0.052,
   inertiaTimeConstant: 210,
   wheelMultiplier: 0.04,
-  snapStiffness: 172,
-  snapDamping: 30,
+  snapStiffness: 236,
+  snapDamping: 28,
   magneticThreshold: ANGLE_STEP * 0.18,
   magneticStrength: 0.12,
 };
@@ -205,6 +205,8 @@ function applyMagneticDelta(
 // Tick rate is capped at 25/sec so a fast fling never becomes a buzz.
 function useGearHaptics(enabled: boolean, isMobile: boolean) {
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioUnlockedRef = useRef(false);
+  const interactionSoundActiveRef = useRef(false);
   const lastTickMsRef = useRef(0);
   const lastFocusedIndexRef = useRef<number | null>(null);
   const pendingTickVolumeRef = useRef<number | null>(null);
@@ -212,15 +214,42 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function',
   );
 
+  const flushPendingTick = useCallback((ctx: AudioContext) => {
+    const pendingVolume = pendingTickVolumeRef.current;
+    if (ctx.state !== 'running' || pendingVolume === null) return;
+    pendingTickVolumeRef.current = null;
+    const now = ctx.currentTime;
+    const bodyDur = isMobile ? 0.014 : 0.01;
+    const effectiveVolume = Math.min(isMobile ? 0.18 : 0.12, pendingVolume * (isMobile ? 1 : 0.88));
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(isMobile ? 1450 : 1560, now);
+    filter.Q.value = 0.7;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(effectiveVolume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + bodyDur);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    const osc = ctx.createOscillator();
+    osc.type = isMobile ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(isMobile ? 1240 : 1320, now);
+    osc.connect(filter);
+    osc.start(now);
+    osc.stop(now + bodyDur);
+  }, [isMobile]);
+
   const renderAudioTick = useCallback((ctx: AudioContext, volume: number) => {
     const now = ctx.currentTime;
-    const bodyDur = isMobile ? 0.009 : 0.0065;
-    const effectiveVolume = Math.min(isMobile ? 0.14 : 0.096, volume * (isMobile ? 0.9 : 0.76));
+    const bodyDur = isMobile ? 0.014 : 0.01;
+    const effectiveVolume = Math.min(isMobile ? 0.18 : 0.12, volume * (isMobile ? 1 : 0.88));
 
     const bodyFilter = ctx.createBiquadFilter();
-    bodyFilter.type = 'lowpass';
-    bodyFilter.frequency.setValueAtTime(isMobile ? 2200 : 2400, now);
-    bodyFilter.Q.value = 0.28;
+    bodyFilter.type = 'bandpass';
+    bodyFilter.frequency.setValueAtTime(isMobile ? 1450 : 1560, now);
+    bodyFilter.Q.value = 0.7;
 
     const bodyGain = ctx.createGain();
     bodyGain.gain.setValueAtTime(effectiveVolume, now);
@@ -229,8 +258,8 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     bodyGain.connect(ctx.destination);
 
     const bodyOsc = ctx.createOscillator();
-    bodyOsc.type = 'sine';
-    bodyOsc.frequency.setValueAtTime(isMobile ? 1180 : 1280, now);
+    bodyOsc.type = isMobile ? 'triangle' : 'sine';
+    bodyOsc.frequency.setValueAtTime(isMobile ? 1240 : 1320, now);
     bodyOsc.connect(bodyFilter);
     bodyOsc.start(now);
     bodyOsc.stop(now + bodyDur);
@@ -251,23 +280,26 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
       const ctx = audioCtxRef.current;
       if (ctx?.state === 'suspended') {
         void ctx.resume().then(() => {
-          const pendingVolume = pendingTickVolumeRef.current;
-          if (ctx.state !== 'running' || pendingVolume === null) return;
-          pendingTickVolumeRef.current = null;
-          renderAudioTick(ctx, pendingVolume);
+          if (ctx.state !== 'running') return;
+          audioUnlockedRef.current = true;
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+          flushPendingTick(ctx);
         });
       } else if (ctx?.state === 'running') {
-        const gain = ctx.createGain();
-        gain.gain.value = 0.0001;
-        gain.connect(ctx.destination);
-        const osc = ctx.createOscillator();
-        osc.frequency.value = isMobile ? 880 : 960;
-        osc.connect(gain);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.003);
+        audioUnlockedRef.current = true;
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        flushPendingTick(ctx);
       }
     } catch { /* ignore */ }
-  }, [enabled, isMobile, renderAudioTick]);
+  }, [enabled, flushPendingTick]);
 
   const vibrate = useCallback((pattern: number | number[]) => {
     if (!hasVibrationApiRef.current) return false;
@@ -284,14 +316,8 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     try {
-      if (ctx.state !== 'running') {
+      if (ctx.state !== 'running' || !audioUnlockedRef.current) {
         pendingTickVolumeRef.current = Math.max(pendingTickVolumeRef.current ?? 0, volume);
-        void ctx.resume().then(() => {
-          const pendingVolume = pendingTickVolumeRef.current;
-          if (ctx.state !== 'running' || pendingVolume === null) return;
-          pendingTickVolumeRef.current = null;
-          renderAudioTick(ctx, pendingVolume);
-        });
         return;
       }
 
@@ -301,9 +327,9 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
 
   // Light tick — fires on every item boundary crossing during scroll.
   const tick = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !interactionSoundActiveRef.current) return;
     const now = Date.now();
-    if (now - lastTickMsRef.current < 40) return; // cap ≤ 25 ticks/sec
+    if (now - lastTickMsRef.current < 52) return; // cap ~19 ticks/sec so fast flings stay crisp
     lastTickMsRef.current = now;
     vibrate(1);
     playAudioTick(0.16);
@@ -312,12 +338,6 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
   // Heavier pulse — fires once when the spring settles after release.
   // On Android: double-pulse pattern gives a distinct "lock-in" feel.
   // On iOS: slightly louder tick to distinguish from scroll ticks.
-  const snapPulse = useCallback(() => {
-    if (!enabled) return;
-    vibrate([5, 30, 2]);
-    playAudioTick(0.24);
-  }, [enabled, playAudioTick, vibrate]);
-
   // Subscribe to smoothRotation; fire tick whenever the focused slot changes.
   const trackRotation = useCallback((value: number) => {
     const idx = Math.round(-value / ANGLE_STEP);
@@ -327,7 +347,14 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     }
   }, [tick]);
 
-  return { unlockAudio, trackRotation, snapPulse };
+  const setInteractionSoundActive = useCallback((active: boolean) => {
+    interactionSoundActiveRef.current = active;
+    if (!active) {
+      pendingTickVolumeRef.current = null;
+    }
+  }, []);
+
+  return { unlockAudio, trackRotation, setInteractionSoundActive };
 }
 
 export default function GearWheel() {
@@ -460,7 +487,7 @@ export default function GearWheel() {
   const indicatorHaloAlpha = useTransform(snapProgress, [0, 1], [0.16, 0.34]);
   const indicatorHalo = useMotionTemplate`0 0 ${indicatorHaloBlur}px rgba(0, 47, 167, ${indicatorHaloAlpha})`;
 
-  const { unlockAudio, trackRotation, snapPulse } = useGearHaptics(true, isMobile);
+  const { unlockAudio, trackRotation, setInteractionSoundActive } = useGearHaptics(true, isMobile);
   useMotionValueEvent(rotation, 'change', trackRotation);
 
   const animateToSnap = useCallback((
@@ -478,16 +505,16 @@ export default function GearWheel() {
         if (interactionEpochRef.current !== epoch) return;
         rotation.set(targetRotation);
         rotationAnimationRef.current = null;
-        snapPulse();
       },
     });
-  }, [rotation, stopRotationAnimation, snapPulse]);
+  }, [rotation, stopRotationAnimation]);
 
   // ─── Drag Interaction ───
   const handlePanStart = useCallback(() => {
     unlockAudio(); // Unblock AudioContext on iOS (must happen inside a user gesture)
+    setInteractionSoundActive(true);
     panEpochRef.current = resetInteraction();
-  }, [resetInteraction, unlockAudio]);
+  }, [resetInteraction, setInteractionSoundActive, unlockAudio]);
 
   const handlePan = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const delta = info.delta.y * physics.panMultiplier;
@@ -508,6 +535,7 @@ export default function GearWheel() {
     const epoch = panEpochRef.current ?? resetInteraction();
     panEpochRef.current = null;
     flushPendingMobilePanDelta();
+    setInteractionSoundActive(false);
     const v = info.velocity.y;
     const velocity = v * physics.inertiaVelocity;
 
@@ -531,7 +559,6 @@ export default function GearWheel() {
         const snapped = getNearestSnapRotation(rotation.get());
         rotation.set(snapped);
         rotationAnimationRef.current = null;
-        snapPulse();
       },
     });
   }, [
@@ -544,13 +571,14 @@ export default function GearWheel() {
     flushPendingMobilePanDelta,
     resetInteraction,
     rotation,
-    snapPulse,
+    setInteractionSoundActive,
   ]);
 
   // ─── Scroll Interaction ───
   const handleWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     unlockAudio(); // Desktop users reach this before handlePanStart
+    setInteractionSoundActive(true);
     stopWheelSnapTimeout();
 
     const epoch = wheelEpochRef.current ?? resetInteraction();
@@ -561,6 +589,7 @@ export default function GearWheel() {
 
     wheelSnapTimeoutRef.current = setTimeout(() => {
       wheelEpochRef.current = null;
+      setInteractionSoundActive(false);
       if (interactionEpochRef.current !== epoch) return;
       const snapped = getNearestSnapRotation(rotation.get());
       animateToSnap(snapped, physics.snapStiffness, physics.snapDamping, epoch);
@@ -574,6 +603,7 @@ export default function GearWheel() {
     animateToSnap,
     resetInteraction,
     rotation,
+    setInteractionSoundActive,
     stopWheelSnapTimeout,
     unlockAudio,
   ]);
@@ -581,6 +611,7 @@ export default function GearWheel() {
   // ─── Routing Action ───
   const handleSelectTool = useCallback((routeId: string, index: number) => {
     const epoch = resetInteraction();
+    setInteractionSoundActive(false);
 
     const slotAngle = index * ANGLE_STEP;
     const currentRot = rotation.get();
@@ -613,7 +644,7 @@ export default function GearWheel() {
         }
       });
     }
-  }, [resetInteraction, rotation, navigate, physics.snapStiffness, physics.snapDamping, stopRotationAnimation]);
+  }, [resetInteraction, rotation, navigate, physics.snapStiffness, physics.snapDamping, setInteractionSoundActive, stopRotationAnimation]);
 
   return (
     <motion.div
@@ -626,6 +657,8 @@ export default function GearWheel() {
         cursor: isMobile ? 'default' : 'grab',
       }}
       onPointerDown={unlockAudio}
+      onTouchStart={unlockAudio}
+      onMouseDown={unlockAudio}
       onPan={handlePan}
       onPanStart={handlePanStart}
       onPanEnd={handlePanEnd}
