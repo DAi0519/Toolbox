@@ -30,7 +30,7 @@ export default function BackHomeButton({
       onClick={handleClick}
       aria-label={label}
       className={clsx(
-        'inline-flex items-center justify-center text-black/50 transition-colors hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20',
+        'pressable inline-flex items-center justify-center rounded-xl text-black/50 transition-[color,background-color,box-shadow] hover:bg-black/[0.03] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 active:bg-black/[0.06]',
         compact ? 'h-11 w-11' : 'h-12 w-12',
         className,
       )}

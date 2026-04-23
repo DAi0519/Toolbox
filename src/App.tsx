@@ -1,8 +1,48 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Suspense } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import GearWheel from './components/GearWheel';
 import ToolLayout from './components/ToolLayout';
+import PageTransition from './components/PageTransition';
 import { TOOLS } from './config/tools';
+
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <Routes location={location} key={location.pathname}>
+        <Route
+          path="/"
+          element={(
+            <PageTransition>
+              <GearWheel />
+            </PageTransition>
+          )}
+        />
+
+        {TOOLS.map((tool) => (
+          <Route
+            key={tool.id}
+            path={`/tool/${tool.id}`}
+            element={
+              <PageTransition>
+                {tool.fullscreen ? (
+                  <tool.component />
+                ) : (
+                  <ToolLayout title={tool.name}>
+                    <tool.component />
+                  </ToolLayout>
+                )}
+              </PageTransition>
+            }
+          />
+        ))}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
 
 function App() {
   return (
@@ -30,28 +70,7 @@ function App() {
             </div>
           }
         >
-          <Routes>
-            {/* The Home page is the core Wheel Interface */}
-            <Route path="/" element={<GearWheel />} />
-
-            {/* Dynamically build all tool routes from the single config */}
-            {TOOLS.map((tool) => (
-              <Route
-                key={tool.id}
-                path={`/tool/${tool.id}`}
-                element={
-                  tool.fullscreen ? (
-                    <tool.component />
-                  ) : (
-                    <ToolLayout title={tool.name}>
-                      <tool.component />
-                    </ToolLayout>
-                  )
-                }
-              />
-            ))}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <AnimatedRoutes />
         </Suspense>
       </div>
     </BrowserRouter>

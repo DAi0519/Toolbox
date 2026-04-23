@@ -4,6 +4,7 @@ import type { RenameRule } from '../utils/renamingUtils';
 import { Input } from './ui/Input';
 import { Trash2, Type, Hash, Replace, ArrowRightToLine, ArrowLeftToLine, FileEdit, Sparkles, type LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
+import { MOTION } from '../../../lib/motion';
 
 interface RulePanelProps {
   rules: RenameRule[];
@@ -110,9 +111,10 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
             <motion.div
               key={index}
               layout
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 10, scale: 0.985 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99 }}
+              transition={MOTION.card}
               className={clsx(
                 "border rounded-xl p-4 shadow-sm relative",
                 "bg-white border-neutral-200"
@@ -123,7 +125,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                   <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-neutral-100 text-neutral-500">
                     {RULE_LABELS[rule.type]}
                   </span>
-                  <button onClick={() => removeRule(index)} className="text-neutral-300 hover:text-red-500 transition-colors">
+                  <button onClick={() => removeRule(index)} className="pressable rounded-md p-1 text-neutral-300 transition-colors hover:bg-red-50 hover:text-red-500">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -172,7 +174,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                           <div className="relative">
                             <button 
                               onClick={() => setShowPresets(showPresets === index ? null : index)}
-                              className="flex items-center gap-1 text-[10px] text-white bg-black px-2 py-1 rounded hover:bg-neutral-800 transition-colors"
+                              className="pressable flex items-center gap-1 rounded bg-black px-2 py-1 text-[10px] text-white transition-colors hover:bg-neutral-800"
                             >
                               <Sparkles size={10} />
                               常用模板
@@ -212,7 +214,7 @@ export const RulePanel: React.FC<RulePanelProps> = ({ rules, setRules }) => {
                           key={opt.value}
                           onClick={() => updateRule(index, { ...rule, value: opt.value })}
                           className={clsx(
-                            "px-3 py-1.5 text-xs font-medium rounded-md border transition-all",
+                            "pressable rounded-md border px-3 py-1.5 text-xs font-medium transition-[background-color,border-color,color,box-shadow]",
                             rule.value === opt.value 
                               ? "bg-neutral-900 text-white border-neutral-900" 
                               : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
@@ -269,7 +271,7 @@ const RuleButton = ({ icon: Icon, label, onClick, highlight }: RuleButtonProps) 
   <button
     onClick={onClick}
     className={clsx(
-      "flex flex-col items-center justify-center p-3 gap-2 border rounded-xl active:scale-95 transition-all text-center",
+      "pressable flex flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center transition-[transform,background-color,border-color,box-shadow]",
       highlight 
         ? "bg-black border-black text-white shadow-sm"
         : "bg-white border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"

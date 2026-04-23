@@ -4,6 +4,7 @@ import type { FileItem } from '../utils/renamingUtils';
 import { FileText, X, ArrowDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { clsx } from 'clsx';
+import { EASING } from '../../../lib/motion';
 
 interface FileListProps {
   files: FileItem[];
@@ -29,9 +30,14 @@ export const FileList: React.FC<FileListProps> = ({ files, onRemove }) => {
             return (
               <motion.div
                 key={file.id}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+                initial={{ opacity: 0, height: 0, y: 12 }}
+                animate={{ opacity: 1, height: 'auto', y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -8 }}
+                transition={{
+                  height: { duration: 0.22, ease: EASING.out },
+                  opacity: { duration: 0.16, ease: EASING.out },
+                  y: { duration: 0.22, ease: EASING.out },
+                }}
                 className="group flex items-start gap-3 border-b border-neutral-100 px-4 py-3 transition-colors last:border-0 hover:bg-neutral-50 sm:gap-4 sm:px-6 sm:py-4"
               >
                 <div className="mt-1 rounded-lg bg-neutral-100 p-2 text-neutral-400 transition-colors group-hover:text-neutral-600">

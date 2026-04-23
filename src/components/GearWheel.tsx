@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, type WheelEvent } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type WheelEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   motion,
@@ -6,16 +6,18 @@ import {
   useSpring,
   animate,
   useTransform,
+  useMotionTemplate,
   useMotionValueEvent,
   MotionValue,
+  useReducedMotion,
   type PanInfo,
 } from 'framer-motion';
 import { TOOLS } from '../config/tools';
 import { useViewport } from '../hooks/useViewport';
 
-const DEFAULT_FOCUS_TOOL_ID = 'batch-renamer';
+const DEFAULT_FOCUS_TOOL_ID = 'gradient-studio';
 const WHEEL_SNAP_DELAY_MS = 90;
-const NAVIGATE_DELAY_MS = 150;
+const NAVIGATE_DELAY_MS = 96;
 const ROTATION_LOCK_EPSILON = 0.5;
 const INSTANT_SNAP_VELOCITY_THRESHOLD = 0.02;
 const MOBILE_VISIBLE_DISTANCE_CUTOFF = 42;
@@ -38,7 +40,6 @@ const USE_STATIC_ARC = TOOLS.length <= STATIC_ARC_TOOL_LIMIT;
 const REPEAT_SET_COUNT = getRepeatSetCount(TOOLS.length);
 const ACTIVE_REPEAT_SET_COUNT = USE_STATIC_ARC ? 1 : REPEAT_SET_COUNT;
 const CENTER_REPEAT_INDEX = Math.floor(ACTIVE_REPEAT_SET_COUNT / 2);
-let homeSessionRotation: number | null = null;
 const REPEATED_TOOLS = Array.from({ length: ACTIVE_REPEAT_SET_COUNT }, (_, repeatIndex) =>
   TOOLS.map((tool, toolIndex) => ({
     ...tool,
@@ -93,16 +94,10 @@ interface GearPhysics {
 function getDefaultRotation(): number {
   if (TOOLS.length === 0) return 0;
 
-  const defaultIndex = USE_STATIC_ARC
-    ? Math.floor((TOOLS.length - 1) / 2)
-    : TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
+  const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
   const focusIndex = defaultIndex >= 0 ? defaultIndex : 0;
   const centeredSlotIndex = CENTER_REPEAT_INDEX * TOOLS.length + focusIndex;
   return -(centeredSlotIndex * ANGLE_STEP);
-}
-
-function getInitialRotation(): number {
-  return homeSessionRotation ?? getDefaultRotation();
 }
 
 // ──── Physics ────
@@ -157,6 +152,10 @@ const MOBILE_OPACITY_STOPS = [1, 0.7, 0.4, 0.1, 0];
 const DESKTOP_OPACITY_STOPS = [1, 0.82, 0.34, 0.05, 0];
 const ACTIVE_COLOR_DISTANCE = [0, 5];
 const ACTIVE_COLOR_STOPS = ['#002FA7', '#000000'];
+const MOBILE_X_STOPS = [0, -3, -8, -16, -24];
+const DESKTOP_X_STOPS = [0, -8, -18, -30, -42];
+const MOBILE_BLUR_STOPS = [0, 0.2, 0.6, 1.1, 1.8];
+const DESKTOP_BLUR_STOPS = [0, 0.25, 0.8, 1.5, 2.4];
 const MOBILE_LABEL_BASE_SIZE = MOBILE_FONT_SIZES[0];
 const MOBILE_SCALE_STOPS = MOBILE_FONT_SIZES.map((size) => size / MOBILE_LABEL_BASE_SIZE);
 function getNearestSnapRotation(value: number): number {
@@ -325,12 +324,12 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
 export default function GearWheel() {
   const { isMobile, viewportWidth } = useViewport();
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion() ?? false;
   const wheelSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotationAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
   const mobilePanFrameRef = useRef<number | null>(null);
   const mobilePanDeltaRef = useRef(0);
-  const initialRotationRef = useRef<number | null>(null);
   const interactionEpochRef = useRef(0);
   const panEpochRef = useRef<number | null>(null);
   const wheelEpochRef = useRef<number | null>(null);
@@ -340,18 +339,13 @@ export default function GearWheel() {
     ? Math.max(38, Math.min(72, viewportWidth * 0.13))
     : viewportWidth * 0.15;
   const indicatorSize = isMobile ? 14 : 20;
-  const indicatorGlow = isMobile ? '0 0 12px rgba(37,99,255,0.38)' : '0 0 16px rgba(37,99,255,0.4)';
   const labelOffset = isMobile ? 36 : 52;
   const labelFontSizes = isMobile ? MOBILE_FONT_SIZES : DESKTOP_FONT_SIZES;
   const labelLetterSpacing = isMobile ? '-0.8px' : '-1.5px';
   const labelMaxWidth = isMobile ? '68vw' : 'none';
   const buttonPadding = isMobile ? '8px 12px' : '6px 4px';
-  
-  // Fresh visits start from center; returning from a tool restores the last in-session home position.
-  if (initialRotationRef.current === null) {
-    initialRotationRef.current = getInitialRotation();
-  }
-  const rotation = useMotionValue(initialRotationRef.current);
+  const [initialRotation] = useState(getDefaultRotation);
+  const rotation = useMotionValue(initialRotation);
 
   const stopWheelSnapTimeout = useCallback(() => {
     if (wheelSnapTimeoutRef.current) {
@@ -437,15 +431,25 @@ export default function GearWheel() {
   }, [stopNavigateTimeout, stopPendingMobilePanFrame, stopRotationAnimation, stopWheelSnapTimeout]);
 
   useEffect(() => () => {
-    homeSessionRotation = clampRotation(rotation.get());
     resetInteraction();
-  }, [resetInteraction, rotation]);
+  }, [resetInteraction]);
   
   const smoothRotation = useSpring(rotation, {
     stiffness: physics.stiffness,
     damping: physics.damping,
     mass: physics.mass,
   });
+  const snapDistance = useTransform(smoothRotation, (value) => Math.abs(getSnapDelta(value)));
+  const snapProgress = useSpring(
+    useTransform(snapDistance, (distance) => Math.max(0, 1 - distance / (ANGLE_STEP * 0.5))),
+    shouldReduceMotion
+      ? { stiffness: 1000, damping: 1000 }
+      : { stiffness: 260, damping: 28, mass: 0.7 },
+  );
+  const indicatorScale = useTransform(snapProgress, [0, 1], [0.92, 1.06]);
+  const indicatorHaloBlur = useTransform(snapProgress, [0, 1], isMobile ? [10, 18] : [12, 24]);
+  const indicatorHaloAlpha = useTransform(snapProgress, [0, 1], [0.16, 0.34]);
+  const indicatorHalo = useMotionTemplate`0 0 ${indicatorHaloBlur}px rgba(0, 47, 167, ${indicatorHaloAlpha})`;
 
   const { unlockAudio, trackRotation, snapPulse } = useGearHaptics(true, isMobile);
   useMotionValueEvent(smoothRotation, 'change', trackRotation);
@@ -560,6 +564,7 @@ export default function GearWheel() {
     applyRotationDelta,
     animateToSnap,
     resetInteraction,
+    rotation,
     stopWheelSnapTimeout,
     unlockAudio,
   ]);
@@ -645,13 +650,14 @@ export default function GearWheel() {
             labelLetterSpacing={labelLetterSpacing}
             labelMaxWidth={labelMaxWidth}
             buttonPadding={buttonPadding}
+            shouldReduceMotion={shouldReduceMotion}
             onSelect={handleSelectTool}
           />
         ))}
       </motion.div>
 
       {/* ─── Focal Indicator (Blue Dot) ─── */}
-      <div
+      <motion.div
         style={{
           position: 'absolute',
           left: focusX,
@@ -663,7 +669,8 @@ export default function GearWheel() {
           background: 'var(--accent)',
           zIndex: 50,
           pointerEvents: 'none',
-          boxShadow: indicatorGlow,
+          scale: indicatorScale,
+          boxShadow: indicatorHalo,
         }}
       />
     </motion.div>
@@ -684,6 +691,7 @@ const ArcItem = memo(function ArcItem({
   labelLetterSpacing,
   labelMaxWidth,
   buttonPadding,
+  shouldReduceMotion,
   onSelect,
 }: {
   tool: { id: string; name: string };
@@ -696,6 +704,7 @@ const ArcItem = memo(function ArcItem({
   labelLetterSpacing: string;
   labelMaxWidth: string;
   buttonPadding: string;
+  shouldReduceMotion: boolean;
   onSelect: (id: string, index: number) => void;
 }) {
   const slotAngle = index * ANGLE_STEP;
@@ -708,6 +717,9 @@ const ArcItem = memo(function ArcItem({
   const fontSize = useTransform(dist, DIST_STOPS, labelFontSizes);
   const mobileScale = useTransform(dist, DIST_STOPS, MOBILE_SCALE_STOPS);
   const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
+  const x = useTransform(dist, DIST_STOPS, isMobile ? MOBILE_X_STOPS : DESKTOP_X_STOPS);
+  const blur = useTransform(dist, DIST_STOPS, shouldReduceMotion ? [0, 0, 0, 0, 0] : (isMobile ? MOBILE_BLUR_STOPS : DESKTOP_BLUR_STOPS));
+  const filter = useMotionTemplate`blur(${blur}px)`;
   const pointerEvents = useTransform(
     dist,
     (d) => (d < (isMobile ? MOBILE_POINTER_RANGE : DESKTOP_POINTER_RANGE) ? 'auto' : 'none'),
@@ -743,6 +755,9 @@ const ArcItem = memo(function ArcItem({
       >
         <motion.button
           onClick={() => onSelect(tool.id, index)}
+          whileTap={isMobile ? undefined : { scale: 0.985 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.55 }}
+          className="pressable focus-visible:ring-2 focus-visible:ring-[color:rgba(0,47,167,0.18)]"
           style={{
             background: 'none',
             border: 'none',
@@ -761,6 +776,8 @@ const ArcItem = memo(function ArcItem({
             fontSize: isMobile ? MOBILE_LABEL_BASE_SIZE : fontSize,
             opacity,
             pointerEvents,
+            x,
+            filter,
             scale: isMobile ? mobileScale : 1,
             willChange: 'transform, opacity, color',
             transformOrigin: 'left center',

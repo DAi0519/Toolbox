@@ -19,23 +19,16 @@ export const TOOLS: ToolConfig[] = [
     fullscreen: true,
   },
   {
-    id: 'gradient-studio',
-    name: '渐变工坊',
-    description: '噪声渐变图生成器',
-    component: lazy(() => import('../tools/GradientStudio/GradientStudio')),
-    fullscreen: true,
-  },
-  {
     id: 'batch-renamer',
     name: '批量重命名',
     description: '批量文件重命名工具',
     component: lazy(() => import('../tools/BatchRenamer/BatchRenamer'))
   },
   {
-    id: 'image-studio',
-    name: '图像创作实验室',
-    description: 'AI 图像生成工具',
-    component: lazy(() => import('../tools/ImageStudio/ImageStudio')),
+    id: 'gradient-studio',
+    name: '渐变卡片生成',
+    description: '噪声渐变图生成器',
+    component: lazy(() => import('../tools/GradientStudio/GradientStudio')),
     fullscreen: true,
   },
   {
@@ -44,5 +37,13 @@ export const TOOLS: ToolConfig[] = [
     description: '12x12 sequencer with image-to-pattern import and MP3 export',
     component: lazy(() => import('../tools/MusicPad/MusicPad')),
     fullscreen: true,
-  }
+  },
+  {
+    id: 'image-studio',
+    name: '图像创作实验室',
+    description: 'AI 图像生成工具',
+    component: lazy(() => import('../tools/ImageStudio/ImageStudio')),
+    fullscreen: true,
+  },
+  
 ];

@@ -30,11 +30,20 @@
   }
 
   .tool-header-action {
-    @apply inline-flex min-h-10 items-center gap-1.5 rounded-md px-2 text-xs font-medium leading-none text-black/50 transition-colors sm:min-h-11;
+    @apply inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium leading-none text-black/50 sm:min-h-11;
+    background: transparent;
+    transition-property: transform, color, background-color, box-shadow;
+    transition-duration: var(--motion-medium);
+    transition-timing-function: var(--ease-out);
+    will-change: transform;
   }
 
   .tool-header-action:hover {
     @apply text-black;
+  }
+
+  .tool-header-action:active {
+    background: rgb(0 0 0 / 0.05);
   }
 
   .tool-header-action:focus-visible {
@@ -73,6 +82,13 @@ body,
   --ink: #000000;
   --bg: #ffffff;
   --accent: #002FA7;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-fast: 140ms;
+  --motion-medium: 180ms;
+  --motion-panel: 240ms;
+  --motion-drawer: 320ms;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -88,9 +104,64 @@ body {
   color: var(--ink);
   font-family: 'DouyinSansBold', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button {
   font-family: inherit;
   outline: none;
+}
+
+.pressable {
+  transition-property: transform, background-color, border-color, color, opacity, box-shadow;
+  transition-duration: var(--motion-medium);
+  transition-timing-function: var(--ease-out);
+  will-change: transform;
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
+.pressable:disabled:active,
+.pressable[aria-disabled='true']:active {
+  transform: none;
+}
+
+.surface-lift {
+  transition-property: transform, border-color, background-color, box-shadow, opacity;
+  transition-duration: var(--motion-panel);
+  transition-timing-function: var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .surface-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  .tool-header-action:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  .pressable,
+  .surface-lift,
+  .tool-header-action {
+    transition-duration: 1ms !important;
+  }
+
+  .pressable:active,
+  .surface-lift:hover,
+  .tool-header-action:hover {
+    transform: none !important;
+  }
 }

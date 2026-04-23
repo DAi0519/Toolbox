@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, FilePlus, Folder, FileText } from 'lucide-react';
 import { clsx } from 'clsx';
+import { MOTION } from '../../../lib/motion';
 
 interface DropZoneProps {
   onFilesDropped: (files: File[]) => void;
@@ -123,11 +124,13 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
   return (
     <motion.div
       layout
+      animate={isDragging ? { scale: 1.01, y: -2 } : { scale: 1, y: 0 }}
+      transition={MOTION.settle}
       className={clsx(
-        "relative group rounded-2xl border-2 border-dashed transition-all duration-300 ease-out overflow-hidden",
+        "relative group overflow-hidden rounded-2xl border-2 border-dashed transition-[border-color,background-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out)]",
         isDragging 
-          ? "border-black bg-neutral-50 scale-[1.01]" 
-          : "border-neutral-200 hover:border-neutral-300 bg-transparent"
+          ? "border-black bg-neutral-50 shadow-[0_18px_50px_rgba(0,0,0,0.08)]"
+          : "border-neutral-200 bg-transparent hover:border-neutral-300"
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -152,11 +155,12 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
       <div className="flex flex-col items-center justify-center space-y-4 px-4 py-10 text-center sm:space-y-5 sm:py-12">
         <motion.div
           animate={{
-            scale: isDragging ? 1.1 : 1,
-            rotate: isDragging ? 5 : 0,
+            scale: isDragging ? 1.08 : 1,
+            rotate: isDragging ? 4 : 0,
           }}
+          transition={MOTION.settle}
           className={clsx(
-            "p-4 rounded-full transition-colors duration-300",
+            "rounded-full p-4 transition-colors duration-200 [transition-timing-function:var(--ease-out)]",
             isDragging ? "bg-black text-white" : "bg-neutral-100 text-neutral-500 group-hover:bg-neutral-200 group-hover:text-black"
           )}
         >
@@ -176,14 +180,14 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesDropped }) => {
         <div className="flex w-full flex-col gap-2 pt-2 sm:w-auto sm:flex-row sm:gap-3">
           <button
             onClick={handleSelectFiles}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 active:scale-95"
+            className="pressable inline-flex items-center justify-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-[background-color,box-shadow] hover:bg-neutral-800"
           >
             <FileText size={16} />
             选择文件
           </button>
           <button
             onClick={handleSelectFolder}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-[var(--ink)] shadow-sm transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-95"
+            className="pressable inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-[var(--ink)] shadow-sm transition-[background-color,border-color,box-shadow] hover:border-neutral-300 hover:bg-neutral-50"
           >
             <Folder size={16} />
             选择文件夹
