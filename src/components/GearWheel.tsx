@@ -209,37 +209,9 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
   const interactionSoundActiveRef = useRef(false);
   const lastTickMsRef = useRef(0);
   const lastFocusedIndexRef = useRef<number | null>(null);
-  const pendingTickVolumeRef = useRef<number | null>(null);
   const hasVibrationApiRef = useRef(
     typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function',
   );
-
-  const flushPendingTick = useCallback((ctx: AudioContext) => {
-    const pendingVolume = pendingTickVolumeRef.current;
-    if (ctx.state !== 'running' || pendingVolume === null) return;
-    pendingTickVolumeRef.current = null;
-    const now = ctx.currentTime;
-    const bodyDur = isMobile ? 0.014 : 0.01;
-    const effectiveVolume = Math.min(isMobile ? 0.18 : 0.12, pendingVolume * (isMobile ? 1 : 0.88));
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(isMobile ? 1450 : 1560, now);
-    filter.Q.value = 0.7;
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(effectiveVolume, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + bodyDur);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-
-    const osc = ctx.createOscillator();
-    osc.type = isMobile ? 'triangle' : 'sine';
-    osc.frequency.setValueAtTime(isMobile ? 1240 : 1320, now);
-    osc.connect(filter);
-    osc.start(now);
-    osc.stop(now + bodyDur);
-  }, [isMobile]);
 
   const renderAudioTick = useCallback((ctx: AudioContext, volume: number) => {
     const now = ctx.currentTime;
@@ -287,7 +259,6 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
           source.buffer = buffer;
           source.connect(ctx.destination);
           source.start(0);
-          flushPendingTick(ctx);
         });
       } else if (ctx?.state === 'running') {
         audioUnlockedRef.current = true;
@@ -296,10 +267,9 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
         source.buffer = buffer;
         source.connect(ctx.destination);
         source.start(0);
-        flushPendingTick(ctx);
       }
     } catch { /* ignore */ }
-  }, [enabled, flushPendingTick]);
+  }, [enabled]);
 
   const vibrate = useCallback((pattern: number | number[]) => {
     if (!hasVibrationApiRef.current) return false;
@@ -317,7 +287,6 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
     if (!ctx) return;
     try {
       if (ctx.state !== 'running' || !audioUnlockedRef.current) {
-        pendingTickVolumeRef.current = Math.max(pendingTickVolumeRef.current ?? 0, volume);
         return;
       }
 
@@ -349,9 +318,6 @@ function useGearHaptics(enabled: boolean, isMobile: boolean) {
 
   const setInteractionSoundActive = useCallback((active: boolean) => {
     interactionSoundActiveRef.current = active;
-    if (!active) {
-      pendingTickVolumeRef.current = null;
-    }
   }, []);
 
   return { unlockAudio, trackRotation, setInteractionSoundActive };
