@@ -1,0 +1,64 @@
+/**
+ * [INPUT]: 依赖 GearWheel.tsx 输出的 gear-wheel 类名、OptionWheel 的选项状态类以及全局 --ink/--bg/--accent 设计令牌
+ * [OUTPUT]: 提供首页轮盘的全屏布局、焦点小蓝点、现有品牌字体层级与响应式选项样式
+ * [POS]: components 中 GearWheel.tsx 的专属样式，覆盖通用 OptionWheel 的首页视觉
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+.gear-wheel {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DouyinSansBold', system-ui, -apple-system, sans-serif;
+}
+
+.gear-wheel__stage {
+  position: absolute;
+  inset: 0;
+}
+
+.gear-wheel__indicator {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.gear-wheel__options .option-wheel__item {
+  max-width: min(70vw, 860px);
+  overflow: hidden;
+  padding: 0.16em 0.12em 0.2em;
+  border-radius: 0.18em;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.gear-wheel__options .option-wheel__item--selected {
+  font-weight: 900;
+}
+
+@media (max-width: 767px) {
+  .gear-wheel__indicator {
+    width: 14px;
+    height: 14px;
+  }
+
+  .gear-wheel__options .option-wheel__item {
+    max-width: 72vw;
+    letter-spacing: -0.022em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gear-wheel__options .option-wheel__item {
+    filter: none !important;
+  }
+}

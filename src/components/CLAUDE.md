@@ -3,27 +3,29 @@
 
 成员清单
 BackHomeButton.tsx: 返回主页按钮，支持 compact 模式与自定义 onClick（未阻止默认时导航到 `/`）
-GearWheel.tsx: 齿轮轮盘导航，桌面/移动端分离物理参数，拖拽+滚轮+点击聚焦
+GearWheel.md: GearWheel 的交互、物理参数与响应式设计说明
+GearWheel.css: 首页轮盘专属布局，复用现有 DouyinSansBold、黑白层级与 Klein Blue 焦点小圆点
+GearWheel.tsx: 首页导航适配层，将 TOOLS、路由、持久化与设备参数映射到 OptionWheel
+OptionWheel.css: OptionWheel 专属样式，定义曲线选项、左右朝向与拖拽状态
+OptionWheel.tsx: React Bits 曲线轮盘内核，支持滚轮、拖拽、键盘、循环选择、吸附后激活与可选提示音
+PageTransition.tsx: 基于统一 motion 令牌的页面进出场动画容器
 ToolHeader.tsx: 通用工具页头，左侧返回按钮 + 标题，右侧可注入 actions
 ToolHeaderActionsContext.tsx: 提供 `useToolHeaderActions(slot)`，给 ToolLayout 子树注入右侧 header actions
+ToolLayout.md: ToolLayout 的布局职责、页头注入与安全区说明
 ToolLayout.tsx: 标准工具页面容器，内置 ToolHeader、100dvh 布局与内容滚动区
 
 关键约束（新增 2026-03-05）
-- GearWheel 角度持久化 key 固定为 `gearWheelRotation.v2`，默认焦点工具 id 为 `batch-renamer`。
-- GearWheel 的 `ANGLE_STEP` 来自 `360 / ITEM_COUNT`，且 ITEM_COUNT 基于 `TOOLS` 三倍重复列表，避免视觉断层。
-- GearWheel 桌面与移动端 physics 常量分离（stiffness/damping/mass/pan/wheel/snap），修改需同步调参与文档。
-- GearWheel 标题采用分端策略：移动端使用固定基准字号 + `scale` 变换避免抖动，桌面端保留完整 `fontSize` 层次效果。
-- GearWheel 移动端交互需强调“齿轮卡位感”：前半程保持顺滑自由，接近槽位时再施加磁吸，释放后快速吸附到最近 `ANGLE_STEP`。
-- GearWheel 移动端渲染路径应单独瘦身：不要让移动端标签项继续订阅桌面专用的 `fontSize` / `blur` motion 值；移动端优先减少可见项数量、缩小命中范围并保持文本无滤镜。
-- GearWheel 移动端手势更新必须走 `requestAnimationFrame` 合帧：高频 `onPan` 只能累积 delta，真正写入 `rotation` 应与屏幕刷新对齐，并在 `panEnd` 前先 flush。
-- GearWheel 桌面端保留完整景深效果，但仅允许使用安全的合成层优化（如 `will-change` / `translateZ(0)` / 独立绝对定位层）；不要在零尺寸轮盘容器或标签壳层上使用会裁剪内容的 `contain: paint/layout`。
-- GearWheel 动画控制需统一收口：拖拽 gesture 与滚轮 burst 都只能在开始时 `resetInteraction()` 一次，中途增量更新只修改 `rotation`；旧动画和旧 timeout 必须通过交互 epoch 失效。
-- GearWheel 桌面端 blur 允许保留，但应优先使用数值 blur + `useMotionTemplate` 生成滤镜字符串，避免每帧构造多组离散字符串插值。
-- GearWheel 桌面端景深曲线应优先“近处保持锐利、远处主要靠 opacity 拉深”，不要通过增加中近距离 blur 来堆层次。
-- GearWheel snap 完成后统一持久化角度，避免多条动画链同时争用 `rotation` 或提前写入错误角度。
-- `useViewport` 在移动端必须做 rAF 合并和尺寸相等短路，避免 visual viewport 频繁事件把轮盘交互拖成连续重渲染。
+- GearWheel 继续兼容 `gearWheelRotation.v2`，按旧的 10 度槽位值读取/写入当前工具索引；默认焦点工具为 `gradient-studio`。
+- OptionWheel 是唯一交互内核：滚轮 burst 与拖拽过程允许连续移动，结束后统一吸附到完整选项；点击非焦点项时先对齐，再触发导航。
+- OptionWheel 使用单一 `requestAnimationFrame` 循环和帧率无关指数平滑；选项只在每帧更新 transform、opacity、filter 与颜色进度变量。
+- GearWheel 桌面与移动端分别配置字号、间距、曲率、模糊与 smoothing；移动端弱化 blur，并保留 1ms 振动槽位反馈。
+- reduced-motion 下 smoothing 降至 1ms 且禁用 blur，但仍保留焦点颜色与吸附结果。
+- 首页字体固定继承 DouyinSansBold，普通选项使用 `--ink`，焦点选项使用 `--accent`，不得被 shadcn preset 主题覆盖。
+- `useViewport` 通过尺寸相等短路、ResizeObserver 与 visualViewport 事件避免无意义状态更新。
 - ToolLayout 子组件如需操作按钮，应通过 `useToolHeaderActions` 注入，不要在内容区再做一层重复 header。
 - ToolHeader / ToolLayout 必须保留 safe-area 变量（`--safe-top` / `--safe-bottom`）兼容刘海屏。
 
 对外暴露
 - 组件均通过显式路径导入（无统一 `index.ts` 聚合导出）
+
+[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

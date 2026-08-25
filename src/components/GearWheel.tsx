@@ -1,802 +1,115 @@
-import { memo, useCallback, useEffect, useRef, useState, type WheelEvent } from 'react';
+/**
+ * [INPUT]: 依赖 OptionWheel 的曲线选择与吸附交互、TOOLS 工具注册表、useViewport 响应式能力和 react-router-dom 导航
+ * [OUTPUT]: 默认导出 GearWheel 首页工具轮盘，提供焦点小蓝点、滚轮、拖拽、点击、键盘导航与选择持久化
+ * [POS]: components 的首页主导航适配层，将通用 OptionWheel 映射为 Playbox 工具入口
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+import { useCallback, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import {
-  motion,
-  useMotionValue,
-  useSpring,
-  animate,
-  useTransform,
-  useMotionTemplate,
-  useMotionValueEvent,
-  MotionValue,
-  useReducedMotion,
-  type PanInfo,
-} from 'framer-motion';
 import { TOOLS } from '../config/tools';
 import { useViewport } from '../hooks/useViewport';
+import OptionWheel from './OptionWheel';
+import './GearWheel.css';
 
 const DEFAULT_FOCUS_TOOL_ID = 'gradient-studio';
-const WHEEL_SNAP_DELAY_MS = 90;
-const NAVIGATE_DELAY_MS = 96;
-const ROTATION_LOCK_EPSILON = 0.5;
-const INSTANT_SNAP_VELOCITY_THRESHOLD = 0.02;
-const MOBILE_VISIBLE_DISTANCE_CUTOFF = 42;
-const DESKTOP_VISIBLE_DISTANCE_CUTOFF = 47;
-const MOBILE_POINTER_RANGE = 52;
-const DESKTOP_POINTER_RANGE = 50;
-const ANGLE_STEP = 10;
-const MIN_SLOT_COUNT = 45;
-const STATIC_ARC_TOOL_LIMIT = 7;
-const EDGE_RESISTANCE = 0.24;
+const ROTATION_STORAGE_KEY = 'gearWheelRotation.v2';
+const LEGACY_ANGLE_STEP = 10;
+const TOOL_NAMES = TOOLS.map((tool) => tool.name);
 
-function getRepeatSetCount(toolCount: number): number {
-  if (toolCount <= 0) return 1;
-
-  const minRepeatCount = Math.max(3, Math.ceil(MIN_SLOT_COUNT / toolCount));
-  return minRepeatCount % 2 === 0 ? minRepeatCount + 1 : minRepeatCount;
+function getDefaultToolIndex(): number {
+  const configuredIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
+  return configuredIndex >= 0 ? configuredIndex : 0;
 }
 
-const USE_STATIC_ARC = TOOLS.length <= STATIC_ARC_TOOL_LIMIT;
-const REPEAT_SET_COUNT = getRepeatSetCount(TOOLS.length);
-const ACTIVE_REPEAT_SET_COUNT = USE_STATIC_ARC ? 1 : REPEAT_SET_COUNT;
-const CENTER_REPEAT_INDEX = Math.floor(ACTIVE_REPEAT_SET_COUNT / 2);
-const REPEATED_TOOLS = Array.from({ length: ACTIVE_REPEAT_SET_COUNT }, (_, repeatIndex) =>
-  TOOLS.map((tool, toolIndex) => ({
-    ...tool,
-    uniqueId: `${tool.id}-${repeatIndex}-${toolIndex}`,
-    slotIndex: repeatIndex * TOOLS.length + toolIndex,
-  })),
-).flat();
-const WHEEL_MIN_ROTATION = USE_STATIC_ARC
-  ? -Math.max(0, (REPEATED_TOOLS.length - 1) * ANGLE_STEP)
-  : null;
-const WHEEL_MAX_ROTATION = USE_STATIC_ARC ? 0 : null;
-
-function clampRotation(value: number): number {
-  if (WHEEL_MIN_ROTATION === null || WHEEL_MAX_ROTATION === null) {
-    return value;
-  }
-
-  return Math.min(WHEEL_MAX_ROTATION, Math.max(WHEEL_MIN_ROTATION, value));
-}
-
-function applyEdgeResistance(value: number): number {
-  if (WHEEL_MIN_ROTATION === null || WHEEL_MAX_ROTATION === null) {
-    return value;
-  }
-
-  if (value < WHEEL_MIN_ROTATION) {
-    return WHEEL_MIN_ROTATION + (value - WHEEL_MIN_ROTATION) * EDGE_RESISTANCE;
-  }
-
-  if (value > WHEEL_MAX_ROTATION) {
-    return WHEEL_MAX_ROTATION + (value - WHEEL_MAX_ROTATION) * EDGE_RESISTANCE;
-  }
-
-  return value;
-}
-
-interface GearPhysics {
-  stiffness: number;
-  damping: number;
-  mass: number;
-  panMultiplier: number;
-  inertiaMultiplier: number;
-  inertiaVelocity: number;
-  inertiaTimeConstant: number;
-  wheelMultiplier: number;
-  snapStiffness: number;
-  snapDamping: number;
-  magneticThreshold: number;
-  magneticStrength: number;
-}
-
-function getDefaultRotation(): number {
+function normalizeToolIndex(value: number): number {
   if (TOOLS.length === 0) return 0;
-
-  const defaultIndex = TOOLS.findIndex((tool) => tool.id === DEFAULT_FOCUS_TOOL_ID);
-  const focusIndex = defaultIndex >= 0 ? defaultIndex : 0;
-  const centeredSlotIndex = CENTER_REPEAT_INDEX * TOOLS.length + focusIndex;
-  return -(centeredSlotIndex * ANGLE_STEP);
+  return ((Math.round(value) % TOOLS.length) + TOOLS.length) % TOOLS.length;
 }
 
-// ──── Physics ────
-// Tunable by default (Interface Craft Principle)
-const DESKTOP_PHYSICS: GearPhysics = {
-  // Wheel spring feel (heavier, stiffer, more damped)
-  // Reduced damping and mass to make the wheel feel lighter overall
-  stiffness: 132,
-  damping: 24,
-  mass: 0.92,
-  
-  // Drag handling
-  panMultiplier: 0.12,
-  
-  // Drag inertia (Friction after releasing drag)
-  inertiaMultiplier: 0.16,
-  inertiaVelocity: 0.14,
-  inertiaTimeConstant: 220,
-  
-  // Trackpad / Mouse Wheel Scroll
-  // Increased multiplier to reduce the "physical effort" needed to scroll
-  wheelMultiplier: 0.125,
-  snapStiffness: 180,
-  snapDamping: 28,
-  magneticThreshold: 0,
-  magneticStrength: 0,
-};
+function readInitialToolIndex(): number {
+  if (typeof window === 'undefined' || TOOLS.length === 0) return getDefaultToolIndex();
 
-const MOBILE_PHYSICS: GearPhysics = {
-  stiffness: 124,
-  damping: 25,
-  mass: 0.84,
-  panMultiplier: 0.078,
-  inertiaMultiplier: 0.042,
-  inertiaVelocity: 0.052,
-  inertiaTimeConstant: 210,
-  wheelMultiplier: 0.04,
-  snapStiffness: 236,
-  snapDamping: 28,
-  magneticThreshold: ANGLE_STEP * 0.18,
-  magneticStrength: 0.12,
-};
-
-// Module-level constants so ArcItem memo comparisons always see stable references.
-// Previously these were recreated as inline arrays on every GearWheel render,
-// which made React.memo treat them as changed and re-render all 42 items — even
-// when isMobile hadn't changed (e.g. visualViewport scroll from soft keyboard).
-const MOBILE_FONT_SIZES = [38, 30, 23, 17, 13];
-const DESKTOP_FONT_SIZES = [64, 48, 32, 22, 16];
-const DIST_STOPS = [0, 10, 20, 30, 45];
-const MOBILE_OPACITY_STOPS = [1, 0.7, 0.4, 0.1, 0];
-const DESKTOP_OPACITY_STOPS = [1, 0.82, 0.34, 0.05, 0];
-const ACTIVE_COLOR_DISTANCE = [0, 5];
-const ACTIVE_COLOR_STOPS = ['#002FA7', '#000000'];
-const MOBILE_X_STOPS = [0, -3, -8, -16, -24];
-const DESKTOP_X_STOPS = [0, -8, -18, -30, -42];
-const MOBILE_BLUR_STOPS = [0, 0.2, 0.6, 1.1, 1.8];
-const DESKTOP_BLUR_STOPS = [0, 0.25, 0.8, 1.5, 2.4];
-const MOBILE_LABEL_BASE_SIZE = MOBILE_FONT_SIZES[0];
-const MOBILE_SCALE_STOPS = MOBILE_FONT_SIZES.map((size) => size / MOBILE_LABEL_BASE_SIZE);
-function getNearestSnapRotation(value: number): number {
-  return clampRotation(Math.round(value / ANGLE_STEP) * ANGLE_STEP);
-}
-
-function getFocusDistance(rotationValue: number, slotAngle: number): number {
-  return Math.abs(rotationValue + slotAngle);
-}
-
-function getSnapDelta(value: number): number {
-  return getNearestSnapRotation(value) - value;
-}
-
-function getSelectionTargetRotation(slotAngle: number): number {
-  return -slotAngle;
-}
-
-function applyMagneticDelta(
-  rotation: MotionValue<number>,
-  delta: number,
-  threshold: number,
-  strength: number,
-) {
-  const rawNext = applyEdgeResistance(rotation.get() + delta);
-  const snapDelta = getSnapDelta(rawNext);
-  const distance = Math.abs(snapDelta);
-
-  if (distance >= threshold) {
-    rotation.set(rawNext);
-    return;
+  try {
+    const storedRotation = Number.parseFloat(sessionStorage.getItem(ROTATION_STORAGE_KEY) ?? '');
+    if (Number.isFinite(storedRotation)) {
+      return normalizeToolIndex(-storedRotation / LEGACY_ANGLE_STEP);
+    }
+  } catch {
+    // sessionStorage 不可用时回退到配置的默认工具。
   }
 
-  const pullProgress = 1 - distance / threshold;
-  const magneticPull = snapDelta * pullProgress * pullProgress * strength;
-  rotation.set(rawNext + magneticPull);
+  return getDefaultToolIndex();
 }
 
-// ──── Haptics ────
-// Provides per-item tick feedback and snap-landing pulse tuned for mobile.
-//
-// Strategy:
-//   Try vibration whenever the browser exposes it.
-//   Keep Web Audio unlocked as well so desktop browsers, unsupported
-//   vibration environments, and mixed sound+haptic feedback all work.
-//
-// Tick rate is capped at 25/sec so a fast fling never becomes a buzz.
-function useGearHaptics(enabled: boolean, isMobile: boolean) {
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioUnlockedRef = useRef(false);
-  const interactionSoundActiveRef = useRef(false);
-  const lastTickMsRef = useRef(0);
-  const lastFocusedIndexRef = useRef<number | null>(null);
-  const hasVibrationApiRef = useRef(
-    typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function',
-  );
-
-  const renderAudioTick = useCallback((ctx: AudioContext, volume: number) => {
-    const now = ctx.currentTime;
-    const bodyDur = isMobile ? 0.014 : 0.01;
-    const effectiveVolume = Math.min(isMobile ? 0.32 : 0.23, volume * (isMobile ? 1.35 : 1.2));
-
-    const bodyFilter = ctx.createBiquadFilter();
-    bodyFilter.type = 'bandpass';
-    bodyFilter.frequency.setValueAtTime(isMobile ? 1450 : 1560, now);
-    bodyFilter.Q.value = 0.7;
-
-    const bodyGain = ctx.createGain();
-    bodyGain.gain.setValueAtTime(effectiveVolume, now);
-    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + bodyDur);
-    bodyFilter.connect(bodyGain);
-    bodyGain.connect(ctx.destination);
-
-    const bodyOsc = ctx.createOscillator();
-    bodyOsc.type = isMobile ? 'triangle' : 'sine';
-    bodyOsc.frequency.setValueAtTime(isMobile ? 1240 : 1320, now);
-    bodyOsc.connect(bodyFilter);
-    bodyOsc.start(now);
-    bodyOsc.stop(now + bodyDur);
-  }, [isMobile]);
-
-  // Create (and implicitly resume) AudioContext inside a user gesture.
-  const unlockAudio = useCallback(() => {
-    if (!enabled) return;
-    try {
-      type VendorWindow = Window & { webkitAudioContext?: typeof AudioContext };
-      const Ctx =
-        window.AudioContext ??
-        (window as unknown as VendorWindow).webkitAudioContext;
-      if (!audioCtxRef.current && Ctx) {
-        audioCtxRef.current = new Ctx();
-      }
-
-      const ctx = audioCtxRef.current;
-      if (ctx?.state === 'suspended') {
-        void ctx.resume().then(() => {
-          if (ctx.state !== 'running') return;
-          audioUnlockedRef.current = true;
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          source.start(0);
-        });
-      } else if (ctx?.state === 'running') {
-        audioUnlockedRef.current = true;
-        const buffer = ctx.createBuffer(1, 1, 22050);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.start(0);
-      }
-    } catch { /* ignore */ }
-  }, [enabled]);
-
-  const vibrate = useCallback((pattern: number | number[]) => {
-    if (!hasVibrationApiRef.current) return false;
-    try {
-      return navigator.vibrate(pattern);
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // Render a short decaying noise burst through a bandpass filter.
-  // Result: crisp mechanical "tick" character at very low volume.
-  const playAudioTick = useCallback((volume: number) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    try {
-      if (ctx.state !== 'running' || !audioUnlockedRef.current) {
-        return;
-      }
-
-      renderAudioTick(ctx, volume);
-    } catch { /* ignore */ }
-  }, [renderAudioTick]);
-
-  // Light tick — fires on every item boundary crossing during scroll.
-  const tick = useCallback(() => {
-    if (!enabled || !interactionSoundActiveRef.current) return;
-    const now = Date.now();
-    if (now - lastTickMsRef.current < 52) return; // cap ~19 ticks/sec so fast flings stay crisp
-    lastTickMsRef.current = now;
-    vibrate(1);
-    playAudioTick(0.24);
-  }, [enabled, playAudioTick, vibrate]);
-
-  // Heavier pulse — fires once when the spring settles after release.
-  // On Android: double-pulse pattern gives a distinct "lock-in" feel.
-  // On iOS: slightly louder tick to distinguish from scroll ticks.
-  // Subscribe to smoothRotation; fire tick whenever the focused slot changes.
-  const trackRotation = useCallback((value: number) => {
-    const idx = Math.round(-value / ANGLE_STEP);
-    if (lastFocusedIndexRef.current !== idx) {
-      lastFocusedIndexRef.current = idx;
-      tick();
-    }
-  }, [tick]);
-
-  const setInteractionSoundActive = useCallback((active: boolean) => {
-    interactionSoundActiveRef.current = active;
-  }, []);
-
-  return { unlockAudio, trackRotation, setInteractionSoundActive };
+function persistToolIndex(index: number) {
+  try {
+    sessionStorage.setItem(ROTATION_STORAGE_KEY, String(-index * LEGACY_ANGLE_STEP));
+  } catch {
+    // 隐私模式或存储配额异常不应阻断导航。
+  }
 }
 
 export default function GearWheel() {
-  const { isMobile, viewportWidth } = useViewport();
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion() ?? false;
-  const wheelSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rotationAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
-  const mobilePanFrameRef = useRef<number | null>(null);
-  const mobilePanDeltaRef = useRef(0);
-  const interactionEpochRef = useRef(0);
-  const panEpochRef = useRef<number | null>(null);
-  const wheelEpochRef = useRef<number | null>(null);
-  const physics = isMobile ? MOBILE_PHYSICS : DESKTOP_PHYSICS;
-  const radius = isMobile ? 430 : USE_STATIC_ARC ? 670 : 710;
-  const focusX = isMobile
-    ? Math.max(38, Math.min(72, viewportWidth * 0.13))
-    : viewportWidth * 0.15;
-  const indicatorSize = isMobile ? 14 : 20;
-  const labelOffset = isMobile ? 36 : 52;
-  const labelFontSizes = isMobile ? MOBILE_FONT_SIZES : DESKTOP_FONT_SIZES;
-  const labelLetterSpacing = isMobile ? '-0.8px' : '-1.5px';
-  const labelMaxWidth = isMobile ? '68vw' : 'none';
-  const buttonPadding = isMobile ? '8px 12px' : '6px 4px';
-  const [initialRotation] = useState(getDefaultRotation);
-  const rotation = useMotionValue(initialRotation);
+  const { isMobile, viewportWidth } = useViewport();
+  const [initialIndex] = useState(readInitialToolIndex);
 
-  const stopWheelSnapTimeout = useCallback(() => {
-    if (wheelSnapTimeoutRef.current) {
-      clearTimeout(wheelSnapTimeoutRef.current);
-      wheelSnapTimeoutRef.current = null;
+  const fontSize = isMobile
+    ? Math.max(2, Math.min(2.4, viewportWidth / 160))
+    : Math.max(3.15, Math.min(4, viewportWidth / 360));
+  const inset = isMobile
+    ? Math.max(68, Math.min(92, viewportWidth * 0.22))
+    : Math.max(188, Math.min(300, viewportWidth * 0.19));
+  const indicatorLeft = inset - (isMobile ? 26 : 42);
+
+  const handleChange = useCallback((index: number) => {
+    persistToolIndex(index);
+    if (isMobile && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(1);
     }
-  }, []);
+  }, [isMobile]);
 
-  const stopNavigateTimeout = useCallback(() => {
-    if (navigateTimeoutRef.current) {
-      clearTimeout(navigateTimeoutRef.current);
-      navigateTimeoutRef.current = null;
-    }
-  }, []);
+  const handleActivate = useCallback((index: number) => {
+    const tool = TOOLS[index];
+    if (!tool) return;
 
-  const stopRotationAnimation = useCallback(() => {
-    rotationAnimationRef.current?.stop();
-    rotationAnimationRef.current = null;
-  }, []);
-
-  const stopPendingMobilePanFrame = useCallback(() => {
-    if (mobilePanFrameRef.current !== null) {
-      window.cancelAnimationFrame(mobilePanFrameRef.current);
-      mobilePanFrameRef.current = null;
-    }
-    mobilePanDeltaRef.current = 0;
-  }, []);
-
-  const applyRotationDelta = useCallback((delta: number) => {
-    if (isMobile) {
-      applyMagneticDelta(rotation, delta, physics.magneticThreshold, physics.magneticStrength);
-      return;
-    }
-
-    rotation.set(applyEdgeResistance(rotation.get() + delta));
-  }, [
-    rotation,
-    physics.magneticThreshold,
-    physics.magneticStrength,
-    isMobile,
-  ]);
-
-  const flushPendingMobilePanDelta = useCallback(() => {
-    if (mobilePanFrameRef.current === null && mobilePanDeltaRef.current === 0) return;
-
-    if (mobilePanFrameRef.current !== null) {
-      window.cancelAnimationFrame(mobilePanFrameRef.current);
-      mobilePanFrameRef.current = null;
-    }
-
-    const delta = mobilePanDeltaRef.current;
-    mobilePanDeltaRef.current = 0;
-
-    if (delta !== 0) {
-      applyRotationDelta(delta);
-    }
-  }, [applyRotationDelta]);
-
-  const scheduleMobilePanDelta = useCallback((delta: number) => {
-    mobilePanDeltaRef.current += delta;
-    if (mobilePanFrameRef.current !== null) return;
-
-    mobilePanFrameRef.current = window.requestAnimationFrame(() => {
-      mobilePanFrameRef.current = null;
-      const nextDelta = mobilePanDeltaRef.current;
-      mobilePanDeltaRef.current = 0;
-
-      if (nextDelta !== 0) {
-        applyRotationDelta(nextDelta);
-      }
-    });
-  }, [applyRotationDelta]);
-
-  const resetInteraction = useCallback(() => {
-    interactionEpochRef.current += 1;
-    panEpochRef.current = null;
-    wheelEpochRef.current = null;
-    stopPendingMobilePanFrame();
-    stopWheelSnapTimeout();
-    stopNavigateTimeout();
-    stopRotationAnimation();
-    return interactionEpochRef.current;
-  }, [stopNavigateTimeout, stopPendingMobilePanFrame, stopRotationAnimation, stopWheelSnapTimeout]);
-
-  useEffect(() => () => {
-    resetInteraction();
-  }, [resetInteraction]);
-  
-  const smoothRotation = useSpring(rotation, {
-    stiffness: physics.stiffness,
-    damping: physics.damping,
-    mass: physics.mass,
-  });
-  const snapDistance = useTransform(smoothRotation, (value) => Math.abs(getSnapDelta(value)));
-  const snapProgress = useSpring(
-    useTransform(snapDistance, (distance) => Math.max(0, 1 - distance / (ANGLE_STEP * 0.5))),
-    shouldReduceMotion
-      ? { stiffness: 1000, damping: 1000 }
-      : { stiffness: 260, damping: 28, mass: 0.7 },
-  );
-  const indicatorScale = useTransform(snapProgress, [0, 1], [0.92, 1.06]);
-  const indicatorHaloBlur = useTransform(snapProgress, [0, 1], isMobile ? [10, 18] : [12, 24]);
-  const indicatorHaloAlpha = useTransform(snapProgress, [0, 1], [0.16, 0.34]);
-  const indicatorHalo = useMotionTemplate`0 0 ${indicatorHaloBlur}px rgba(0, 47, 167, ${indicatorHaloAlpha})`;
-
-  const { unlockAudio, trackRotation, setInteractionSoundActive } = useGearHaptics(true, isMobile);
-  useMotionValueEvent(rotation, 'change', trackRotation);
-
-  const animateToSnap = useCallback((
-    targetRotation: number,
-    stiffness: number,
-    damping: number,
-    epoch: number,
-  ) => {
-    stopRotationAnimation();
-    rotationAnimationRef.current = animate(rotation, targetRotation, {
-      type: 'spring',
-      stiffness,
-      damping,
-      onComplete: () => {
-        if (interactionEpochRef.current !== epoch) return;
-        rotation.set(targetRotation);
-        rotationAnimationRef.current = null;
-      },
-    });
-  }, [rotation, stopRotationAnimation]);
-
-  // ─── Drag Interaction ───
-  const handlePanStart = useCallback(() => {
-    unlockAudio(); // Unblock AudioContext on iOS (must happen inside a user gesture)
-    setInteractionSoundActive(true);
-    panEpochRef.current = resetInteraction();
-  }, [resetInteraction, setInteractionSoundActive, unlockAudio]);
-
-  const handlePan = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const delta = info.delta.y * physics.panMultiplier;
-    if (isMobile) {
-      scheduleMobilePanDelta(delta);
-      return;
-    }
-
-    applyRotationDelta(delta);
-  }, [
-    physics.panMultiplier,
-    isMobile,
-    applyRotationDelta,
-    scheduleMobilePanDelta,
-  ]);
-
-  const handlePanEnd = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const epoch = panEpochRef.current ?? resetInteraction();
-    panEpochRef.current = null;
-    flushPendingMobilePanDelta();
-    setInteractionSoundActive(false);
-    const v = info.velocity.y;
-    const velocity = v * physics.inertiaVelocity;
-
-    if (Math.abs(velocity) < INSTANT_SNAP_VELOCITY_THRESHOLD) {
-      animateToSnap(
-        getNearestSnapRotation(rotation.get()),
-        physics.snapStiffness,
-        physics.snapDamping,
-        epoch,
-      );
-      return;
-    }
-
-    rotationAnimationRef.current = animate(rotation, rotation.get() + v * physics.inertiaMultiplier, {
-      type: 'inertia',
-      velocity,
-      timeConstant: physics.inertiaTimeConstant,
-      modifyTarget: getNearestSnapRotation,
-      onComplete: () => {
-        if (interactionEpochRef.current !== epoch) return;
-        const snapped = getNearestSnapRotation(rotation.get());
-        rotation.set(snapped);
-        rotationAnimationRef.current = null;
-      },
-    });
-  }, [
-    animateToSnap,
-    physics.inertiaMultiplier,
-    physics.inertiaTimeConstant,
-    physics.inertiaVelocity,
-    physics.snapDamping,
-    physics.snapStiffness,
-    flushPendingMobilePanDelta,
-    resetInteraction,
-    rotation,
-    setInteractionSoundActive,
-  ]);
-
-  // ─── Scroll Interaction ───
-  const handleWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    unlockAudio(); // Desktop users reach this before handlePanStart
-    setInteractionSoundActive(true);
-    stopWheelSnapTimeout();
-
-    const epoch = wheelEpochRef.current ?? resetInteraction();
-    wheelEpochRef.current = epoch;
-
-    const delta = -e.deltaY * physics.wheelMultiplier;
-    applyRotationDelta(delta);
-
-    wheelSnapTimeoutRef.current = setTimeout(() => {
-      wheelEpochRef.current = null;
-      setInteractionSoundActive(false);
-      if (interactionEpochRef.current !== epoch) return;
-      const snapped = getNearestSnapRotation(rotation.get());
-      animateToSnap(snapped, physics.snapStiffness, physics.snapDamping, epoch);
-      wheelSnapTimeoutRef.current = null;
-    }, WHEEL_SNAP_DELAY_MS);
-  }, [
-    physics.wheelMultiplier,
-    physics.snapStiffness,
-    physics.snapDamping,
-    applyRotationDelta,
-    animateToSnap,
-    resetInteraction,
-    rotation,
-    setInteractionSoundActive,
-    stopWheelSnapTimeout,
-    unlockAudio,
-  ]);
-
-  // ─── Routing Action ───
-  const handleSelectTool = useCallback((routeId: string, index: number) => {
-    const epoch = resetInteraction();
-    setInteractionSoundActive(false);
-
-    const slotAngle = index * ANGLE_STEP;
-    const currentRot = rotation.get();
-    const targetRotation = getSelectionTargetRotation(slotAngle);
-    const diff = targetRotation - currentRot;
-
-    if (Math.abs(diff) < ROTATION_LOCK_EPSILON) {
-      // If it's essentially already at the exact focus point, jump immediately
-      rotation.set(targetRotation);
-      navigate(`/tool/${routeId}`);
-    } else {
-      // Animate strictly to the absolute focus position, but much faster
-      stopRotationAnimation();
-      rotationAnimationRef.current = animate(rotation, targetRotation, {
-        type: 'spring',
-        stiffness: physics.snapStiffness * 3.5, // Significantly accelerate the snap
-        damping: physics.snapDamping * 1.5, // Stop quickly without much oscillation
-        restDelta: 0.01, // Insist on a visually strict full stop
-        onComplete: () => {
-          if (interactionEpochRef.current !== epoch) return;
-          rotation.set(targetRotation); // Lock to absolute mathematical center
-          rotationAnimationRef.current = null;
-
-          // Introduce a minimal pause after it rigidly locks into place
-          navigateTimeoutRef.current = setTimeout(() => {
-            if (interactionEpochRef.current !== epoch) return;
-            navigate(`/tool/${routeId}`);
-            navigateTimeoutRef.current = null;
-          }, NAVIGATE_DELAY_MS);
-        }
-      });
-    }
-  }, [resetInteraction, rotation, navigate, physics.snapStiffness, physics.snapDamping, setInteractionSoundActive, stopRotationAnimation]);
+    persistToolIndex(index);
+    navigate(`/tool/${tool.id}`);
+  }, [navigate]);
 
   return (
-    <motion.div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        overflow: 'hidden',
-        touchAction: 'none',
-        userSelect: 'none',
-        cursor: isMobile ? 'default' : 'grab',
-      }}
-      onPointerDown={unlockAudio}
-      onTouchStart={unlockAudio}
-      onMouseDown={unlockAudio}
-      onPan={handlePan}
-      onPanStart={handlePanStart}
-      onPanEnd={handlePanEnd}
-      onWheel={handleWheel}
-      whileTap={isMobile ? undefined : { cursor: 'grabbing' }}
-    >
-
-      {/* ─── The Wheel ─── */}
-      <motion.div
-        style={{
-          position: 'absolute',
-          left: focusX - radius,
-          top: '50%',
-          width: 0,
-          height: 0,
-          rotate: smoothRotation,
-          willChange: 'transform',
-          transformStyle: 'preserve-3d',
-        }}
-      >
-        {REPEATED_TOOLS.map((tool, index) => (
-          <ArcItem
-            key={tool.uniqueId}
-            tool={tool}
-            index={index}
-            isMobile={isMobile}
-            smoothRotation={smoothRotation}
-            radius={radius}
-            labelOffset={labelOffset}
-            labelFontSizes={labelFontSizes}
-            labelLetterSpacing={labelLetterSpacing}
-            labelMaxWidth={labelMaxWidth}
-            buttonPadding={buttonPadding}
-            shouldReduceMotion={shouldReduceMotion}
-            onSelect={handleSelectTool}
-          />
-        ))}
-      </motion.div>
-
-      {/* ─── Focal Indicator (Blue Dot) ─── */}
-      <motion.div
-        style={{
-          position: 'absolute',
-          left: focusX,
-          top: '50%',
-          width: indicatorSize,
-          height: indicatorSize,
-          marginTop: -indicatorSize / 2,
-          borderRadius: '50%',
-          background: 'var(--accent)',
-          zIndex: 50,
-          pointerEvents: 'none',
-          scale: indicatorScale,
-          boxShadow: indicatorHalo,
-        }}
-      />
-    </motion.div>
+    <main className="gear-wheel" aria-label="Playbox 工具导航">
+      <div className="gear-wheel__stage">
+        <span
+          className="gear-wheel__indicator"
+          style={{ left: indicatorLeft }}
+          aria-hidden="true"
+        />
+        <OptionWheel
+          items={TOOL_NAMES}
+          defaultSelected={initialIndex}
+          onChange={handleChange}
+          onActivate={handleActivate}
+          textColor="var(--ink)"
+          activeColor="var(--accent)"
+          side="left"
+          fontSize={fontSize}
+          spacing={isMobile ? 1.72 : 1.78}
+          curve={isMobile ? 1.08 : 1.2}
+          tilt={isMobile ? 8 : 7}
+          blur={shouldReduceMotion ? 0 : isMobile ? 0.58 : 0.9}
+          fade={isMobile ? 0.34 : 0.32}
+          minOpacity={isMobile ? 0.1 : 0.07}
+          smoothing={shouldReduceMotion ? 1 : isMobile ? 118 : 138}
+          inset={inset}
+          loop
+          draggable
+          className="gear-wheel__options"
+          ariaLabel="选择并打开工具"
+        />
+      </div>
+    </main>
   );
 }
-
-// ──────────────────────────────────────
-// ArcItem — a single label on the wheel
-// ──────────────────────────────────────
-const ArcItem = memo(function ArcItem({
-  tool,
-  index,
-  isMobile,
-  smoothRotation,
-  radius,
-  labelOffset,
-  labelFontSizes,
-  labelLetterSpacing,
-  labelMaxWidth,
-  buttonPadding,
-  shouldReduceMotion,
-  onSelect,
-}: {
-  tool: { id: string; name: string };
-  index: number;
-  isMobile: boolean;
-  smoothRotation: MotionValue<number>;
-  radius: number;
-  labelOffset: number;
-  labelFontSizes: number[];
-  labelLetterSpacing: string;
-  labelMaxWidth: string;
-  buttonPadding: string;
-  shouldReduceMotion: boolean;
-  onSelect: (id: string, index: number) => void;
-}) {
-  const slotAngle = index * ANGLE_STEP;
-  const dist = useTransform(smoothRotation, (r) => getFocusDistance(r, slotAngle));
-  const opacity = useTransform(
-    dist,
-    DIST_STOPS,
-    isMobile ? MOBILE_OPACITY_STOPS : DESKTOP_OPACITY_STOPS,
-  );
-  const fontSize = useTransform(dist, DIST_STOPS, labelFontSizes);
-  const mobileScale = useTransform(dist, DIST_STOPS, MOBILE_SCALE_STOPS);
-  const color = useTransform(dist, ACTIVE_COLOR_DISTANCE, ACTIVE_COLOR_STOPS);
-  const x = useTransform(dist, DIST_STOPS, isMobile ? MOBILE_X_STOPS : DESKTOP_X_STOPS);
-  const blur = useTransform(dist, DIST_STOPS, shouldReduceMotion ? [0, 0, 0, 0, 0] : (isMobile ? MOBILE_BLUR_STOPS : DESKTOP_BLUR_STOPS));
-  const filter = useMotionTemplate`blur(${blur}px)`;
-  const pointerEvents = useTransform(
-    dist,
-    (d) => (d < (isMobile ? MOBILE_POINTER_RANGE : DESKTOP_POINTER_RANGE) ? 'auto' : 'none'),
-  );
-  const visibility = useTransform(
-    dist,
-    (d) => (d <= (isMobile ? MOBILE_VISIBLE_DISTANCE_CUTOFF : DESKTOP_VISIBLE_DISTANCE_CUTOFF)
-      ? 'visible'
-      : 'hidden'),
-  );
-
-  return (
-    <motion.div
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        transform: `rotate(${slotAngle}deg) translateX(${radius}px) translateZ(0)`,
-        transformOrigin: '0 0',
-        visibility,
-        willChange: 'transform',
-        backfaceVisibility: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          left: labelOffset,
-          top: '50%',
-          transform: 'translateY(-50%) translateZ(0)',
-          transformOrigin: 'left center',
-        }}
-      >
-        <motion.button
-          onClick={() => onSelect(tool.id, index)}
-          whileTap={isMobile ? undefined : { scale: 0.985 }}
-          transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.55 }}
-          className="pressable focus-visible:ring-2 focus-visible:ring-[color:rgba(0,47,167,0.18)]"
-          style={{
-            background: 'none',
-            border: 'none',
-            color,
-            fontWeight: 800,
-            letterSpacing: labelLetterSpacing,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: labelMaxWidth,
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            textAlign: 'left',
-            padding: buttonPadding,
-            borderRadius: 10,
-            fontSize: isMobile ? MOBILE_LABEL_BASE_SIZE : fontSize,
-            opacity,
-            pointerEvents,
-            x,
-            filter,
-            scale: isMobile ? mobileScale : 1,
-            willChange: 'transform, opacity, color',
-            transformOrigin: 'left center',
-            backfaceVisibility: 'hidden',
-            WebkitFontSmoothing: 'antialiased',
-            textRendering: isMobile ? 'optimizeSpeed' : 'optimizeLegibility',
-          }}
-        >
-          {tool.name}
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-});

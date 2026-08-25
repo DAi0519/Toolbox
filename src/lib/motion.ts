@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: 无外部依赖，封装项目统一的缓动曲线与动画参数
+ * [OUTPUT]: 对外提供 EASING 与 MOTION 动画常量
+ * [POS]: lib 的动效设计令牌，被页面切换、卡片、抽屉与按压反馈消费
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
 export const EASING = {
   out: [0.23, 1, 0.32, 1],
   inOut: [0.77, 0, 0.175, 1],
